@@ -1,0 +1,19 @@
+/target
+/data
+.env
+*.db
+.DS_Store
+
+# Rust / Cargo
+**/target/
+**/*.rs.bk
+Cargo.lock.bk
+
+# IDE / local tooling
+.claude/
+.cursor/
+.vscode/
+.idea/
+
+# Logs
+*.log

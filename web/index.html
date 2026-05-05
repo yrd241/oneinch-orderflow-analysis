@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>1INCH ORDERFLOW ANALYSIS</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    :root {
+      --bg:      #f0ede4;
+      --ink:     #1a1208;
+      --accent:  #c0392b;
+      --accent2: #2c5f4a;
+      --muted:   #7a6e5f;
+      --card:    #fdfaf4;
+      --border:  3px solid #1a1208;
+      --shadow:  6px 6px 0px #1a1208;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Press Start 2P', monospace;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      image-rendering: pixelated;
+    }
+
+    /* ── SCANLINE overlay ── */
+    body::after {
+      content: '';
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,0,0,0.03) 3px,
+        rgba(0,0,0,0.03) 4px
+      );
+      z-index: 9999;
+    }
+
+    /* ── HEADER ── */
+    header {
+      border-bottom: var(--border);
+      padding: 1.5rem 2rem;
+      background: var(--bg);
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      line-height: 1.4;
+      text-shadow:
+        2px 2px 0 var(--ink),
+        4px 4px 0 rgba(0,0,0,0.12);
+    }
+
+    header h1 .hi { color: var(--accent); }
+
+    /* ── MAIN ── */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* ── PIXEL CARD ── */
+    .card {
+      background: var(--card);
+      border: var(--border);
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    /* pixel corner notches */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      pointer-events: none;
+      background:
+        linear-gradient(var(--bg), var(--bg)) top    left  / 6px 6px no-repeat,
+        linear-gradient(var(--bg), var(--bg)) top    right / 6px 6px no-repeat,
+        linear-gradient(var(--bg), var(--bg)) bottom left  / 6px 6px no-repeat,
+        linear-gradient(var(--bg), var(--bg)) bottom right / 6px 6px no-repeat;
+    }
+
+    .card-header {
+      border-bottom: var(--border);
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--ink);
+    }
+
+    .card-header h2 {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: var(--card);
+    }
+
+    .card-header .card-tag {
+      margin-left: auto;
+      font-size: 0.52rem;
+      letter-spacing: 0.1em;
+      color: #a09080;
+    }
+
+    /* blinking cursor after title */
+    .card-header h2::after {
+      content: '█';
+      margin-left: 0.4em;
+      animation: blink 1.1s step-end infinite;
+      color: var(--accent);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .time-bar {
+      padding: 0.45rem 1rem;
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(26,18,8,0.12);
+      background: var(--card);
+    }
+
+    #sankey {
+      width: 100%;
+      height: 640px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: var(--border);
+      padding: 0.8rem 2rem;
+      display: flex;
+      gap: 2.5rem;
+      font-size: 0.52rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      background: var(--ink);
+    }
+
+    footer span { color: #a09080; }
+    footer code {
+      font-family: inherit;
+      color: var(--bg);
+    }
+
+    .err {
+      color: var(--accent);
+      padding: 2rem;
+      font-size: 0.6rem;
+      line-height: 2;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>1INCH <span class="hi">ORDERFLOW ANALYSIS</span></h1>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="card-header">
+        <h2>ORDER FLOW</h2>
+        <span class="card-tag" id="card-tag">dune.flashbots.result_overall_of</span>
+      </div>
+      <div class="time-bar" id="time-bar"></div>
+      <div id="sankey"></div>
+    </div>
+  </main>
+
+  <footer>
+    <span>API <code>/api/summary</code></span>
+    <span>SRC <code>dune.flashbots.result_overall_of</code></span>
+    <span>STACK <code>RUST · SQLITE · ECHARTS</code></span>
+  </footer>
+
+  <script src="/app.js?v=5"></script>
+</body>
+</html>

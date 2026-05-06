@@ -17,3 +17,6 @@ Cargo.lock.bk
 
 # Logs
 *.log
+
+# CLI export artifacts
+export.json

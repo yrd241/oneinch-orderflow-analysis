@@ -37,16 +37,14 @@ export DUNE_USE_FLASHBOTS_DEFAULTS=1
 ./target/release/orderflow serve   # start server at http://127.0.0.1:3000
 ```
 
-## Optional: run without fetching (download demo DB)
+## Optional: run without fetching (use bundled demo DB)
 
-If you just want to **demo the UI** without running `fetch` (and without a Dune API key), you can download a prebuilt SQLite snapshot from **GitHub Releases** and start `serve` pointing at it.
+If you just want to **demo the UI** without running `fetch` (and without a Dune API key), this repo includes a prebuilt SQLite snapshot at `database/orderflow.db`.
 
-1) Download `orderflow.db` from the latest release (Assets) and save it locally (example: `./demo/orderflow.db`).
-
-2) Run the server using that DB:
+Run the server using that DB:
 
 ```bash
-./target/release/orderflow serve --db ./demo/orderflow.db
+./target/release/orderflow serve --db database/orderflow.db
 ```
 
 Notes:

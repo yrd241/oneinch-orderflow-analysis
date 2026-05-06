@@ -130,6 +130,50 @@
       background: var(--card);
     }
 
+    .filters {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(26,18,8,0.12);
+      background: var(--card);
+      align-items: flex-end;
+    }
+    .filters .f {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 180px;
+    }
+    .filters label {
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .filters select {
+      font-family: inherit;
+      font-size: 0.7rem;
+      padding: 0.55rem 0.65rem;
+      border: 2px solid rgba(26,18,8,0.7);
+      background: #fffdf7;
+      color: var(--ink);
+      outline: none;
+    }
+    .filters button {
+      font-family: inherit;
+      font-size: 0.7rem;
+      padding: 0.55rem 0.75rem;
+      border: var(--border);
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: 3px 3px 0px var(--ink);
+      cursor: pointer;
+    }
+    .filters button:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0px var(--ink);
+    }
+
     #sankey {
       width: 100%;
       height: 640px;
@@ -173,6 +217,33 @@
         <span class="card-tag" id="card-tag">dune.flashbots.result_overall_of</span>
       </div>
       <div class="time-bar" id="time-bar"></div>
+      <div class="filters" id="filters">
+        <div class="f">
+          <label for="filter-user">User</label>
+          <select id="filter-user"></select>
+        </div>
+        <div class="f">
+          <label for="filter-frontend">Frontend</label>
+          <select id="filter-frontend"></select>
+        </div>
+        <div class="f">
+          <label for="filter-solver">Solver</label>
+          <select id="filter-solver"></select>
+        </div>
+        <div class="f">
+          <label for="filter-mempool">Mempool</label>
+          <select id="filter-mempool"></select>
+        </div>
+        <div class="f">
+          <label for="filter-ofa">OFA / Order Flow Action</label>
+          <select id="filter-ofa"></select>
+        </div>
+        <div class="f">
+          <label for="filter-builder">Builder</label>
+          <select id="filter-builder"></select>
+        </div>
+        <button id="filter-reset" type="button">RESET</button>
+      </div>
       <div id="sankey"></div>
     </div>
   </main>
@@ -183,6 +254,6 @@
     <span>STACK <code>RUST · SQLITE · ECHARTS</code></span>
   </footer>
 
-  <script src="/app.js?v=5"></script>
+  <script src="/app.js?v=7"></script>
 </body>
 </html>

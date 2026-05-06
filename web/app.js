@@ -1,6 +1,34 @@
 (function () {
   const sankeyEl = document.getElementById("sankey");
   const chart = echarts.init(sankeyEl, null, { renderer: "canvas" });
+  const filterEls = {
+    user: document.getElementById("filter-user"),
+    frontend: document.getElementById("filter-frontend"),
+    solver: document.getElementById("filter-solver"),
+    mempool: document.getElementById("filter-mempool"),
+    ofa: document.getElementById("filter-ofa"),
+    builder: document.getElementById("filter-builder"),
+    reset: document.getElementById("filter-reset"),
+  };
+
+  const FILTERS = [
+    { key: "user", label: "User", depth: 0 },
+    { key: "frontend", label: "Frontend", depth: 1 },
+    { key: "solver", label: "Solver", depth: 2 },
+    { key: "mempool", label: "Mempool", depth: 3 },
+    { key: "ofa", label: "OFA", depth: 4 },
+    { key: "builder", label: "Builder", depth: 5 },
+  ];
+
+  let fullPayload = null;
+  const filterState = {
+    user: "__ALL__",
+    frontend: "__ALL__",
+    solver: "__ALL__",
+    mempool: "__ALL__",
+    ofa: "__ALL__",
+    builder: "__ALL__",
+  };
 
   function fmtM(usd) {
     if (usd >= 1e9) return (usd / 1e9).toFixed(2) + "B";
@@ -16,15 +44,81 @@
     document.body.replaceChildren(p);
   }
 
-function renderSankey(payload) {
+  function buildDepthMap(nodes) {
+    const m = new Map();
+    for (const n of nodes) m.set(n.name, n.depth);
+    return m;
+  }
+
+  function uniqSorted(arr) {
+    return Array.from(new Set(arr)).sort((a, b) => String(a).localeCompare(String(b)));
+  }
+
+  function setOptions(selectEl, options, current) {
+    if (!selectEl) return;
+    const opts = ["__ALL__", ...options];
+    selectEl.replaceChildren();
+    for (const v of opts) {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = v === "__ALL__" ? "All" : v;
+      if (v === current) o.selected = true;
+      selectEl.appendChild(o);
+    }
+  }
+
+  function populateFilters(payload) {
+    if (!payload || !payload.sankey) return;
+    const nodes = payload.sankey.nodes || [];
+    const byDepth = new Map();
+    for (const { depth } of FILTERS) byDepth.set(depth, []);
+    for (const n of nodes) {
+      if (n.depth == null) continue;
+      if (byDepth.has(n.depth)) byDepth.get(n.depth).push(n.name);
+    }
+    for (const f of FILTERS) {
+      const options = uniqSorted(byDepth.get(f.depth) || []);
+      setOptions(filterEls[f.key], options, filterState[f.key]);
+    }
+  }
+
+  function applyFilters(payload) {
+    const nodes = payload.sankey.nodes || [];
+    const links = payload.sankey.links || [];
+    const depthByName = buildDepthMap(nodes);
+
+    const allowNode = (name) => {
+      const d = depthByName.get(name);
+      if (d == null) return true;
+      for (const f of FILTERS) {
+        if (d !== f.depth) continue;
+        const chosen = filterState[f.key];
+        if (chosen !== "__ALL__" && name !== chosen) return false;
+      }
+      return true;
+    };
+
+    const filteredLinks = links.filter((l) => allowNode(l.source) && allowNode(l.target));
+    const used = new Set();
+    for (const l of filteredLinks) {
+      used.add(l.source);
+      used.add(l.target);
+    }
+    const filteredNodes = nodes.filter((n) => used.has(n.name));
+    return { nodes: filteredNodes, links: filteredLinks };
+  }
+
+  function renderSankey(payload) {
     const isReal = payload.source === "cache";
 
-    const nodes = (payload.sankey.nodes || []).map((n) => ({
+    const filtered = applyFilters(payload);
+
+    const nodes = (filtered.nodes || []).map((n) => ({
       name: n.name,
       depth: n.depth,
     }));
 
-    const links = (payload.sankey.links || []).map((l) => ({
+    const links = (filtered.links || []).map((l) => ({
       source: l.source,
       target: l.target,
       value: l.value,
@@ -90,6 +184,26 @@ function renderSankey(payload) {
     });
   }
 
+  function wireFilters() {
+    for (const f of FILTERS) {
+      const el = filterEls[f.key];
+      if (!el) continue;
+      el.addEventListener("change", () => {
+        filterState[f.key] = el.value;
+        if (fullPayload) renderSankey(fullPayload);
+      });
+    }
+    if (filterEls.reset) {
+      filterEls.reset.addEventListener("click", () => {
+        for (const f of FILTERS) filterState[f.key] = "__ALL__";
+        if (fullPayload) {
+          populateFilters(fullPayload);
+          renderSankey(fullPayload);
+        }
+      });
+    }
+  }
+
   async function load() {
     try {
       const res = await fetch("/api/summary");
@@ -119,6 +233,8 @@ function renderSankey(payload) {
         const rangeText = fmt(d.block_time_range[0]) + "  –  " + fmt(d.block_time_range[1]);
         if (bar) bar.textContent = rangeText;
       }
+      fullPayload = d;
+      populateFilters(d);
       renderSankey(d);
     } catch (e) {
       showError("Failed to load /api/summary: " + e);
@@ -126,5 +242,6 @@ function renderSankey(payload) {
   }
 
   window.addEventListener("resize", () => chart.resize());
+  wireFilters();
   load();
 })();

@@ -9,13 +9,18 @@
 //!
 //! Env vars:
 //! - `DUNE_QUERY_1INCH_SANKEY`
-//! - `DUNE_USE_FLASHBOTS_DEFAULTS` — `1` = default to Q7428851
+//! - `DUNE_QUERY_ORDERFLOW` — per-tx orderflow (for local EIP-7702 L1 split)
+//! - `DUNE_USE_FLASHBOTS_DEFAULTS` — `1` = default sankey Q7428851 + orderflow Q3184593
 
 use crate::model::QueryKind;
 
 /// 1inch router Sankey edge query (reads dune.flashbots.result_overall_of).
 /// See dune/queries/07_1inch_sankey.sql
 pub const QUERY_1INCH_SANKEY: u64 = 7_428_851;
+
+/// Flashbots public orderflow view (one row per trade; includes `user`, `solver`, `frontend`).
+/// See `dune/queries/01_orderflow_view.sql`.
+pub const QUERY_ORDERFLOW_VIEW: u64 = 3_184_593;
 
 pub struct QueryEntry {
     pub id: u64,
@@ -46,10 +51,18 @@ impl QueryRegistry {
         }
 
         if entries.is_empty() && use_flashbots_defaults() {
-            tracing::info!("Using Flashbots defaults: sankey Q{}", QUERY_1INCH_SANKEY);
+            tracing::info!(
+                "Using Flashbots defaults: sankey Q{} + orderflow Q{}",
+                QUERY_1INCH_SANKEY,
+                QUERY_ORDERFLOW_VIEW
+            );
             entries.push(QueryEntry {
                 id: QUERY_1INCH_SANKEY,
                 kind: QueryKind::OneinchSankey,
+            });
+            entries.push(QueryEntry {
+                id: QUERY_ORDERFLOW_VIEW,
+                kind: QueryKind::OrderflowView,
             });
         }
 

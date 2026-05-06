@@ -11,6 +11,30 @@ const DUNE_API_BASE: &str = "https://api.dune.com/api/v1";
 /// Dune uses this header, not `Authorization: Bearer` (see Dune API authentication docs).
 static DUNE_API_KEY_HEADER: HeaderName = HeaderName::from_static("x-dune-api-key");
 
+fn http_timeout() -> Duration {
+    // Large result sets (e.g. orderflow_view) can take >120s to download/parse per page.
+    // Allow overriding via env var; default to 600s.
+    let secs = std::env::var("DUNE_HTTP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(600u64);
+    Duration::from_secs(secs)
+}
+
+fn http_retries() -> u32 {
+    std::env::var("DUNE_HTTP_RETRIES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5u32)
+}
+
+fn retry_backoff(attempt: u32) -> Duration {
+    // 1.0s, 1.5s, 2.3s, 3.4s, ... capped
+    let base_ms = 1000u64;
+    let ms = (base_ms as f64 * (1.5f64).powi(attempt as i32)) as u64;
+    Duration::from_millis(ms.min(15_000))
+}
+
 pub struct DuneClient {
     http: reqwest::Client,
 }
@@ -25,7 +49,7 @@ impl DuneClient {
 
         let http = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(120))
+            .timeout(http_timeout())
             .build()
             .expect("reqwest client");
 
@@ -159,6 +183,7 @@ impl DuneClient {
         let mut next: Option<String> = Some(first_url);
         let mut all_rows: Vec<Value> = Vec::new();
         let mut pages_fetched: usize = 0;
+        let max_retries = http_retries();
 
         while let Some(url) = next {
             pages_fetched += 1;
@@ -169,14 +194,66 @@ impl DuneClient {
                 ));
             }
 
-            let page: ResultsPage = self
-                .http
-                .get(&url)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            info!(
+                execution_id,
+                page = pages_fetched,
+                fetched = all_rows.len(),
+                "fetching Dune results page"
+            );
+
+            let mut attempt: u32 = 0;
+            let page: ResultsPage = loop {
+                // Important: rebuild request each attempt (reqwest requests aren't reusable).
+                let res = self.http.get(&url).send().await;
+                let res = match res {
+                    Ok(r) => r.error_for_status(),
+                    Err(e) => Err(e),
+                };
+
+                match res {
+                    Ok(r) => match r.json().await {
+                        Ok(p) => break p,
+                        Err(e) => {
+                            if attempt >= max_retries {
+                                return Err(anyhow!(e)).context(format!(
+                                    "decode Dune results page failed after {} retries (execution_id={})",
+                                    max_retries, execution_id
+                                ));
+                            }
+                            let delay = retry_backoff(attempt);
+                            tracing::warn!(
+                                execution_id,
+                                page = pages_fetched,
+                                attempt,
+                                delay_ms = delay.as_millis() as u64,
+                                "Dune results decode failed; retrying: {e}"
+                            );
+                            sleep(delay).await;
+                            attempt += 1;
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        if attempt >= max_retries {
+                            return Err(anyhow!(e)).context(format!(
+                                "fetch Dune results page failed after {} retries (execution_id={})",
+                                max_retries, execution_id
+                            ));
+                        }
+                        let delay = retry_backoff(attempt);
+                        tracing::warn!(
+                            execution_id,
+                            page = pages_fetched,
+                            attempt,
+                            delay_ms = delay.as_millis() as u64,
+                            "Dune results request failed; retrying: {e}"
+                        );
+                        sleep(delay).await;
+                        attempt += 1;
+                        continue;
+                    }
+                }
+            };
 
             let page_len = page.result.rows.len();
             all_rows.extend(page.result.rows);

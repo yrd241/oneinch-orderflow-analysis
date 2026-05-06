@@ -57,6 +57,27 @@ contract_accounts AS (
   ) AS t(address)
   WHERE address IS NOT NULL
 ),
+-- 4) EIP-7702: delegated implementation addresses -> human label (maintain in your fork).
+--    Sync with local lists (e.g. delegated_7702_labels / 7702_delegated_unique.txt workflows).
+eip7702_delegated_labels AS (
+  SELECT *
+  FROM (
+    VALUES
+      -- ('0xDELEGATED_IMPLEMENTATION', 'metamask')
+      (CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR))
+  ) AS t(delegated_to, label)
+  WHERE delegated_to IS NOT NULL
+),
+--    Map sending EOA (user) -> delegated_to code address from eth_getCode / your pipeline.
+eip7702_user_map AS (
+  SELECT *
+  FROM (
+    VALUES
+      -- ('0xUSER_EOA', '0xDELEGATED_IMPLEMENTATION')
+      (CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR))
+  ) AS t(user_addr, delegated_to)
+  WHERE user_addr IS NOT NULL
+),
 -- Build a per-tx user class label for the first Sankey layer.
 user_classified AS (
   SELECT
@@ -66,6 +87,12 @@ user_classified AS (
         'User: Labeled (' || COALESCE(ul.label_category, 'Uncategorized') || ') ' || COALESCE(ul.label_name, 'Unknown')
       WHEN sw.address IS NOT NULL THEN 'User: Smart Wallet (Safe)'
       WHEN ca.address IS NOT NULL THEN 'User: Smart Wallet (Other)'
+      WHEN e7u.user_addr IS NOT NULL THEN
+        CASE
+          WHEN e7l.label IS NOT NULL AND TRIM(e7l.label) <> '' THEN
+            'User: EOA (7702 ' || e7l.label || ')'
+          ELSE 'User: EOA (7702)'
+        END
       ELSE 'User: EOA (Unlabeled)'
     END AS user_class
   FROM deduped d
@@ -75,6 +102,10 @@ user_classified AS (
     ON LOWER(sw.address) = LOWER(CAST(d.user_addr AS VARCHAR))
   LEFT JOIN contract_accounts ca
     ON LOWER(ca.address) = LOWER(CAST(d.user_addr AS VARCHAR))
+  LEFT JOIN eip7702_user_map e7u
+    ON LOWER(e7u.user_addr) = LOWER(CAST(d.user_addr AS VARCHAR))
+  LEFT JOIN eip7702_delegated_labels e7l
+    ON LOWER(e7l.delegated_to) = LOWER(e7u.delegated_to)
 ),
 base AS (
   SELECT

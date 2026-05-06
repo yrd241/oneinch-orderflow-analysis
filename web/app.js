@@ -2,7 +2,6 @@
   const sankeyEl = document.getElementById("sankey");
   const chart = echarts.init(sankeyEl, null, { renderer: "canvas" });
   const filterEls = {
-    user: document.getElementById("filter-user"),
     frontend: document.getElementById("filter-frontend"),
     solver: document.getElementById("filter-solver"),
     mempool: document.getElementById("filter-mempool"),
@@ -11,18 +10,17 @@
     reset: document.getElementById("filter-reset"),
   };
 
+  // Depths after stripping the user layer (original depth-1 becomes 0, etc.)
   const FILTERS = [
-    { key: "user", label: "User", depth: 0 },
-    { key: "frontend", label: "Frontend", depth: 1 },
-    { key: "solver", label: "Solver", depth: 2 },
-    { key: "mempool", label: "Mempool", depth: 3 },
-    { key: "ofa", label: "OFA", depth: 4 },
-    { key: "builder", label: "Builder", depth: 5 },
+    { key: "frontend", label: "Frontend", depth: 0 },
+    { key: "solver",   label: "Solver",   depth: 1 },
+    { key: "mempool",  label: "Mempool",  depth: 2 },
+    { key: "ofa",      label: "OFA",      depth: 3 },
+    { key: "builder",  label: "Builder",  depth: 4 },
   ];
 
   let fullPayload = null;
   const filterState = {
-    user: "__ALL__",
     frontend: "__ALL__",
     solver: "__ALL__",
     mempool: "__ALL__",
@@ -42,6 +40,26 @@
     p.className = "err";
     p.textContent = msg;
     document.body.replaceChildren(p);
+  }
+
+  // Remove depth-0 (user) nodes and any links originating from them,
+  // then shift remaining depths down by 1 so the chart starts at 0.
+  function stripUserLayer(payload) {
+    const nodes = payload.sankey.nodes || [];
+    const links = payload.sankey.links || [];
+    const depth0Names = new Set(
+      nodes.filter((n) => n.depth === 0).map((n) => n.name)
+    );
+    const keptLinks = links.filter((l) => !depth0Names.has(l.source));
+    const usedNames = new Set();
+    for (const l of keptLinks) { usedNames.add(l.source); usedNames.add(l.target); }
+    const keptNodes = nodes
+      .filter((n) => !depth0Names.has(n.name) && usedNames.has(n.name))
+      .map((n) => ({ ...n, depth: n.depth != null ? n.depth - 1 : null }));
+    return {
+      ...payload,
+      sankey: { nodes: keptNodes, links: keptLinks },
+    };
   }
 
   function buildDepthMap(nodes) {
@@ -125,8 +143,8 @@
       volume_usd: l.volume_usd,
     }));
 
-    // Pixel-game palette: one bold color per layer depth
-    const depthColors = ["#1a1208", "#c0392b", "#6b4c2a", "#2c5f4a", "#1a3a5c"];
+    // Pixel-game palette: one bold color per layer depth (depth 0 = Frontend after user strip)
+    const depthColors = ["#c0392b", "#6b4c2a", "#2c5f4a", "#1a3a5c", "#7a4040"];
     const nodesWithColor = nodes.map((n) => ({
       ...n,
       itemStyle: { color: depthColors[n.depth] || "#1a1208" },
@@ -233,9 +251,9 @@
         const rangeText = fmt(d.block_time_range[0]) + "  –  " + fmt(d.block_time_range[1]);
         if (bar) bar.textContent = rangeText;
       }
-      fullPayload = d;
-      populateFilters(d);
-      renderSankey(d);
+      fullPayload = stripUserLayer(d);
+      populateFilters(fullPayload);
+      renderSankey(fullPayload);
     } catch (e) {
       showError("Failed to load /api/summary: " + e);
     }

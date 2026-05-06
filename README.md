@@ -115,7 +115,7 @@ The main query reads from `dune.flashbots.result_overall_of` — a materialized 
 
 ## Acknowledgements
 
-Inspired by [Orderflow.art](https://github.com/flashbots/Orderflow.art) by Flashbots — the original work that made orderflow routing visible and legible across the Ethereum block-building stack. The flow model, layer taxonomy, and general framing used here are directly informed by their approach. This project applies the same lens to 1inch-specific flow.
+Inspired by [Orderflow.art](https://github.com/flashbots/Orderflow.art) by Flashbots and Barter — the original work that made orderflow routing visible and legible across the Ethereum block-building stack. The flow model, layer taxonomy, and general framing used here are directly informed by their approach. This project applies the same lens to 1inch-specific flow.
 
 ## License
 

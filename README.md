@@ -1,96 +1,121 @@
-# oneinch-orderflow-analysis
+# oneinch-orderflow
 
-Local dashboard + data pipeline for **deep analysis of 1inch orderflow**.
+Local dashboard and data pipeline for analyzing **1inch Router orderflow** — who sends orders where, and how they get routed through the MEV stack.
 
-The goal is to make “who sent orders where” concrete and measurable:
+## What it shows
 
-- **Which frontends** route through 1inch
-- **How solvers source flow** (public vs private mempool)
-- **Whether orders go through OFA / which OFA**
-- **Which builders** ultimately build the blocks
+The main view is a 6-layer interactive Sankey:
 
-The UI renders this as a **multi-layer Sankey** so you can inspect the dominant paths at a glance.
+```
+User Class → Frontend → Solver → Mempool → OFA → Builder
+```
+
+This lets you answer questions like:
+
+- Which frontends route volume through 1inch?
+- What share of flow is private mempool vs public?
+- Which OFA mechanisms (or none) are used?
+- Which builders construct the final blocks?
+
+Additional pages break down user segments (labeled addresses, smart wallets, EOAs, EIP-7702 delegated accounts).
+
+## Stack
+
+- **Backend**: Rust (Axum, SQLite, async Dune API client)
+- **Frontend**: Vanilla HTML/JS with ECharts Sankey — no build step
+- **Data**: Dune Analytics queries over Flashbots-indexed 1inch transaction data
 
 ## Quick start
 
 ```bash
 cargo build --release
 
-export DUNE_API_KEY=your_key
+export DUNE_API_KEY=<your key from dune.com/settings/api>
 export DUNE_USE_FLASHBOTS_DEFAULTS=1
 
-./target/release/orderflow fetch
-./target/release/orderflow serve
+./target/release/orderflow fetch   # pull data from Dune → SQLite cache
+./target/release/orderflow serve   # start server at http://127.0.0.1:3000
 ```
 
-Open `http://127.0.0.1:3000`.
+## CLI commands
 
-## CLI
+| Command | Description |
+|---------|-------------|
+| `orderflow fetch` | Execute Dune queries and write results to local SQLite cache |
+| `orderflow serve` | Serve the web UI and `GET /api/summary` JSON endpoint |
+| `orderflow export` | Write the current snapshot to a JSON file (same shape as `/api/summary`) |
 
-- `orderflow fetch`: execute Dune queries → refresh local SQLite cache
-- `orderflow serve`: serve UI + `GET /api/summary` (defaults: `--host 127.0.0.1 --port 3000 --demo true`)
-- `orderflow export`: export current snapshot JSON (same payload as `/api/summary`)
+**Common flags:**
 
-DB path override: `--db <path>` or `ORDERFLOW_DB=<path>` (default `~/.cache/oneinch-orderflow/orderflow.db`).
+```
+--db <path>        SQLite database path (default: ~/.cache/oneinch-orderflow/orderflow.db)
+--host <addr>      Bind address for serve (default: 127.0.0.1)
+--port <n>         Port for serve (default: 3000)
+--demo             Serve even if cache is empty (shows placeholder data)
+```
 
-## Query IDs
+All flags can be set via environment variables (see `orderflow --help`).
 
-`fetch` decides what to execute from env vars:
+## Environment variables
 
-- `DUNE_QUERY_1INCH_SANKEY` → cache kind `1inch_sankey`
-- (optional) `DUNE_QUERY_ORDERFLOW`, `DUNE_QUERY_LIQUIDITY`, … can be cached as well; the UI currently focuses on the Sankey snapshot.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DUNE_API_KEY` | Yes | API key from dune.com/settings/api |
+| `DUNE_USE_FLASHBOTS_DEFAULTS` | No | Set to `1` to use built-in default query IDs |
+| `DUNE_QUERY_1INCH_SANKEY` | No | Override the Sankey query ID (default: `7428851`) |
+| `DUNE_QUERY_ORDERFLOW` | No | Override the per-tx orderflow query ID |
+| `ORDERFLOW_DB` | No | Override the SQLite database path |
+| `DUNE_HTTP_TIMEOUT_SECS` | No | HTTP timeout in seconds (default: 600) |
+| `DUNE_HTTP_RETRIES` | No | Retry attempts on transient errors (default: 5) |
+| `DUNE_MAX_WAIT_SECS` | No | Max seconds to wait for a Dune execution (default: 3600) |
+| `ORDERFLOW_WEB_ROOT` | No | Override the web static files directory |
 
-If no `DUNE_QUERY_*` are set and `DUNE_USE_FLASHBOTS_DEFAULTS=1`, the code executes the built-in default:
+## Data model
 
-- `QUERY_1INCH_SANKEY = 7428851`
+### Sankey edges (`/api/summary`)
 
-## Sankey (what the UI renders)
+Edges come from the cached `1inch_sankey` query rows. Each row must have:
 
-The UI reads `GET /api/summary` and renders `data.sankey`.
+| Field | Type | Description |
+|-------|------|-------------|
+| `edge_level` | string | e.g. `"L1>L2"` through `"L5>L6"` |
+| `source` | string | Source node label |
+| `target` | string | Target node label |
+| `tx_count` | number | Transaction count |
+| `volume_m_usd` | number | Volume in millions USD |
 
-Real sankey edges come from cached rows of kind `1inch_sankey` and must include:
+### User classification
 
-- `edge_level`: `"L1>L2"` … `"L5>L6"`
-- `source`, `target`
-- `tx_count`
-- `volume_m_usd` (millions of USD; converted to USD in API payload as `volume_usd`)
+The Sankey query classifies `user` addresses into three buckets:
 
-### Flow model (layers)
+- **Labeled** — best-effort join to a public labels table
+- **Smart wallet** — Safe or other known contract wallets
+- **EOA** — unlabeled externally owned accounts, further bucketed by activity pattern
 
-The reference Sankey models a 6-layer path:
+EIP-7702 delegated accounts are enriched locally from `eoa_7702_resolved.csv`.
 
-`User class → Frontend → Solver (1inch Router) → Mempool → OFA → Builder`
+### SQLite cache
 
-This lets you answer questions like:
+One table: `raw_rows(kind, payload, ingested_at)`. Each `fetch` overwrites all rows for the given kind.
 
-- Is flow coming from a few major frontends, or long tail?
-- What share is **private** vs **public** mempool?
-- Which OFA endpoints (or “None”) are dominant?
-- Which builders dominate for the flow that matters?
+## Dune queries
 
-### Reference SQL
+| File | Query ID | Purpose |
+|------|----------|---------|
+| `dune/queries/07_1inch_sankey.sql` | `7428851` | Main Sankey: 6-layer edges with user classification |
+| `dune/queries/01_orderflow_view.sql` | `3184593` | Per-transaction trade details |
+| `dune/queries/00_flashbots_reference.sql` | — | Reference: Flashbots source table schema |
+| `dune/queries/03_frontend_resolver.sql` | — | Maps addresses to frontend names |
+| `dune/queries/04_topn_pairs.sql` | — | High-volume trading pairs |
+| `dune/queries/05_volume_timeseries.sql` | — | Time-bucketed volume trends |
+| `dune/queries/06_wallet_app.sql` | — | Wallet integration metrics |
+| `dune/queries/08_integrator_txs.sql` | — | 1inch integrator/partner transactions |
 
-`dune/queries/07_1inch_sankey.sql` is a **reference** Dune SQL that emits the expected shape.
+The main query reads from `dune.flashbots.result_overall_of` — a materialized table maintained by Flashbots. If `max(block_time)` looks stale, check whether that upstream table is still updating.
 
-The reference query classifies `user` addresses into a small number of buckets:
+## Acknowledgements
 
-- labeled address (best-effort join to a public labels table)
-- smart wallet (Safe / other contracts)
-- unlabeled EOA (bucketed)
-
-Note: label and smart-wallet joins are **best-effort** and may require adjusting the source tables
-to what’s available in your Dune environment.
-
-## Storage (SQLite cache)
-
-The cache stores raw JSON rows per kind:
-
-- `raw_rows(kind, payload, ingested_at)` (overwritten per kind on each fetch)
-
-## Notes on “freshness”
-
-If your Dune sources are materialized results (e.g. `dune.flashbots.result_*`), they may have ingestion delays or stop updating.
-If you see stale `max(block_time)`, confirm the upstream table/view is still updating, or fork the query onto a newer dataset.
+Inspired by [Orderflow.art](https://github.com/flashbots/Orderflow.art) by Flashbots — the original work that made orderflow routing visible and legible across the Ethereum block-building stack. The flow model, layer taxonomy, and general framing used here are directly informed by their approach. This project applies the same lens to 1inch-specific flow.
 
 ## License
 

@@ -78,7 +78,6 @@ All flags can be set via environment variables (see `orderflow --help`).
 | `DUNE_API_KEY` | Yes | API key from dune.com/settings/api |
 | `DUNE_USE_FLASHBOTS_DEFAULTS` | No | Set to `1` to use built-in default query IDs |
 | `DUNE_QUERY_1INCH_SANKEY` | No | Override the Sankey query ID (default: `7428851`) |
-| `DUNE_QUERY_ORDERFLOW` | No | Override the per-tx orderflow query ID |
 | `ORDERFLOW_DB` | No | Override the SQLite database path |
 | `DUNE_HTTP_TIMEOUT_SECS` | No | HTTP timeout in seconds (default: 600) |
 | `DUNE_HTTP_RETRIES` | No | Retry attempts on transient errors (default: 5) |
@@ -89,7 +88,9 @@ All flags can be set via environment variables (see `orderflow --help`).
 
 ### Sankey edges (`/api/summary`)
 
-Edges come from the cached `1inch_sankey` query rows. Each row must have:
+All data comes from the single `1inch_sankey` query (Q7428851). Each fetch run executes only that query. The cached rows include both Sankey edges and per-address data used for the address modal and EIP-7702 enrichment.
+
+Sankey edge rows (`edge_level` = `"L1>L2"` … `"L5>L6"`):
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -98,6 +99,16 @@ Edges come from the cached `1inch_sankey` query rows. Each row must have:
 | `target` | string | Target node label |
 | `tx_count` | number | Transaction count |
 | `volume_m_usd` | number | Volume in millions USD |
+
+Address-level rows (`edge_level` = `"USER_ADDR"`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | string | L1 user class, e.g. `"User: EOA (Unlabeled)"` |
+| `target` | string | L2 frontend bucket, e.g. `"Frontend: 1inch Integrators"` |
+| `user_addr` | string | EOA address |
+| `tx_count` | number | Transaction count for this address |
+| `volume_m_usd` | number | Volume in millions USD for this address |
 
 ### User classification
 
@@ -117,9 +128,9 @@ One table: `raw_rows(kind, payload, ingested_at)`. Each `fetch` overwrites all r
 
 | File | Query ID | Purpose |
 |------|----------|---------|
-| `dune/queries/07_1inch_sankey.sql` | `7428851` | Main Sankey: 6-layer edges with user classification |
-| `dune/queries/01_orderflow_view.sql` | `3184593` | Per-transaction trade details |
+| `dune/queries/07_1inch_sankey.sql` | `7428851` | **Main query** — 6-layer Sankey edges, per-address data (`USER_ADDR` rows), and time range (`META` row). Covers all 1inch Router flow (not just Fusion). |
 | `dune/queries/00_flashbots_reference.sql` | — | Reference: Flashbots source table schema |
+| `dune/queries/01_orderflow_view.sql` | `3184593` | Legacy reference only — Fusion-only per-tx view, not used by the dashboard |
 | `dune/queries/03_frontend_resolver.sql` | — | Maps addresses to frontend names |
 | `dune/queries/04_topn_pairs.sql` | — | High-volume trading pairs |
 | `dune/queries/05_volume_timeseries.sql` | — | Time-bucketed volume trends |

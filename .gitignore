@@ -2,6 +2,8 @@
 /data
 .env
 *.db
+*.db-shm
+*.db-wal
 # Allow committing demo DB snapshots
 !database/*.db
 .DS_Store

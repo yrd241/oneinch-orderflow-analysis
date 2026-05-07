@@ -100,17 +100,36 @@
     const isReal = fullPayload && fullPayload.source === "cache";
 
     const depthColors = ["#c0392b", "#2c5f4a"];
-    const nodes = filtered.nodes.map((n) => ({
-      name: n.name,
-      depth: n.depth,
-      itemStyle: { color: depthColors[n.depth] || "#1a1208" },
-    }));
+
+    // Drive Sankey layout (bar width + vertical ordering) by USD volume when available,
+    // so users are ranked by volume from top to bottom. Fall back to the raw `value`
+    // (tx count from real data, or USD from demo) when volume is missing.
     const links = filtered.links.map((l) => ({
       source: l.source,
       target: l.target,
-      value: l.value,
+      value: l.volume_usd != null ? l.volume_usd : l.value,
+      tx_count: l.value,
       volume_usd: l.volume_usd,
     }));
+
+    // ECharts' default sankey layout (`layoutIterations` > 0) reshuffles nodes to
+    // minimize edge crossings, which can put a smaller-volume node above a larger
+    // one. To enforce strict volume-descending order we (1) compute each node's
+    // total value from its links and (2) pre-sort `data` by depth then -value, and
+    // then disable layoutIterations below so ECharts honors our input order.
+    const nodeValue = new Map();
+    for (const l of links) {
+      nodeValue.set(l.source, (nodeValue.get(l.source) || 0) + l.value);
+      nodeValue.set(l.target, (nodeValue.get(l.target) || 0) + l.value);
+    }
+    const nodes = filtered.nodes
+      .map((n) => ({
+        name: n.name,
+        depth: n.depth,
+        _v: nodeValue.get(n.name) || 0,
+        itemStyle: { color: depthColors[n.depth] || "#1a1208" },
+      }))
+      .sort((a, b) => (a.depth - b.depth) || (b._v - a._v));
 
     chart.setOption({
       backgroundColor: "transparent",
@@ -130,7 +149,8 @@
         formatter: function (p) {
           if (p.dataType === "edge") {
             const d = p.data;
-            const txs = isReal ? d.value.toLocaleString() : "$" + fmtM(d.value);
+            const txRaw = d.tx_count != null ? d.tx_count : d.value;
+            const txs = isReal ? Math.round(txRaw).toLocaleString() : "$" + fmtM(txRaw);
             const vol = d.volume_usd != null ? "\nVOL  $" + fmtM(d.volume_usd) : "";
             return d.source + "\n> " + d.target + "\nTXS  " + txs + vol;
           }
@@ -141,6 +161,9 @@
         {
           type: "sankey",
           layout: "none",
+          // 0 iterations → ECharts keeps the order of `data` exactly as provided,
+          // which we sorted by descending volume above.
+          layoutIterations: 0,
           emphasis: { focus: "adjacency" },
           nodeAlign: "justify",
           nodeGap: 16,
@@ -177,15 +200,15 @@
       byUser.set(l.source, cur);
     }
 
-    const rows = Array.from(byUser.entries()).sort((a, b) => b[1].txs - a[1].txs);
-    const totalTxs = rows.reduce((s, [, v]) => s + v.txs, 0);
+    const rows = Array.from(byUser.entries()).sort((a, b) => b[1].vol - a[1].vol);
+    const totalVol = rows.reduce((s, [, v]) => s + v.vol, 0);
 
     const tbody = document.getElementById("eoa-tbody");
     if (!tbody) return;
     tbody.replaceChildren();
 
     for (const [name, { txs, vol }] of rows) {
-      const pct = totalTxs > 0 ? (txs / totalTxs) * 100 : 0;
+      const pct = totalVol > 0 ? (vol / totalVol) * 100 : 0;
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
       tr.title = "Click to view addresses";
@@ -209,7 +232,7 @@
     const l1l2 = extractL1L2(fullPayload);
     const filtered = applyFilters(l1l2);
     renderSankey(filtered);
-    renderTable(l1l2);
+    renderTable(filtered);
   }
 
   function wireFilters() {
@@ -264,29 +287,36 @@
   }
 
   // ── Modal ──────────────────────────────────────────────
-  let bucketsCache = null;
-
-  async function loadBuckets() {
-    if (bucketsCache) return bucketsCache;
-    const res = await fetch("/user_buckets.json");
-    bucketsCache = await res.json();
-    return bucketsCache;
-  }
-
   async function openModal(bucketName) {
-    const buckets = await loadBuckets();
-    const addrs = buckets[bucketName] || [];
+    const frontend = filterState.frontend !== "__ALL__" ? filterState.frontend : null;
 
-    document.getElementById("modal-title").textContent = bucketName;
+    const titleEl = document.getElementById("modal-title");
+    titleEl.textContent = frontend
+      ? bucketName + " → " + frontend.replace("Frontend: ", "")
+      : bucketName;
+
+    const modalBody = document.getElementById("modal-body");
+    modalBody.replaceChildren();
+
+    const params = new URLSearchParams({ user_type: bucketName });
+    if (frontend) params.set("frontend", frontend);
+
+    let addrs = [];
+    try {
+      const res = await fetch("/api/addresses?" + params);
+      const body = await res.json();
+      addrs = (body.ok && body.addresses) ? body.addresses : [];
+    } catch (e) {
+      console.error("Failed to fetch addresses:", e);
+    }
+
     document.getElementById("modal-count").textContent = addrs.length + " addresses";
 
-    const body = document.getElementById("modal-body");
-    body.replaceChildren();
     for (const addr of addrs) {
       const span = document.createElement("span");
       span.className = "addr";
       span.textContent = addr;
-      body.appendChild(span);
+      modalBody.appendChild(span);
     }
 
     document.getElementById("modal-backdrop").classList.add("open");

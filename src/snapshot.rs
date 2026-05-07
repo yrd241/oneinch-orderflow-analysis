@@ -1,9 +1,9 @@
 //! Load Sankey orderflow from SQLite cache or demo data.
 //!
-//! When `user_7702_map` + `delegated_7702_labels` exist in the same SQLite DB and cached
-//! `orderflow_view` rows are present, **`L1>L2` edges whose source is `User: EOA (Unlabeled)`**
-//! are split by per-transaction `user` → EIP-7702 label (`User: EOA (7702 …)`), keeping all
-//! **`L2>L3` … `L5>L6`** edges unchanged from Dune.
+//! When `user_7702_map` + `delegated_7702_labels` exist in the same SQLite DB and the cached
+//! Q7 sankey result contains `USER_ADDR` rows, **`L1>L2` edges whose source is
+//! `User: EOA (Unlabeled)`** are split by per-address EIP-7702 label (`User: EOA (7702 …)`),
+//! keeping all **`L2>L3` … `L5>L6`** edges unchanged from Dune.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::dune::Cache;
-use crate::model::sankey::{demo_flow, extract_time_range, LayeredFlow, SankeyEdgeRow};
+use crate::model::sankey::{demo_flow, extract_time_range, LayeredFlow, SankeyEdgeRow, UserAddrRow};
 use crate::model::QueryKind;
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,6 +67,11 @@ pub fn load_snapshot(db: &Path, allow_demo: bool) -> Result<OrderflowSnapshot> {
         .filter_map(SankeyEdgeRow::from_value)
         .collect();
 
+    let user_addr_rows: Vec<UserAddrRow> = raw_rows
+        .iter()
+        .filter_map(UserAddrRow::from_value)
+        .collect();
+
     // META row: UTC block_time range (min/max) for all included transactions.
     // Keep this independent from whether edge rows successfully parsed.
     let mut block_time_range = extract_time_range(&raw_rows).map(|(min, max)| [min, max]);
@@ -85,24 +90,32 @@ pub fn load_snapshot(db: &Path, allow_demo: bool) -> Result<OrderflowSnapshot> {
     }
 
     if !sankey_edges.is_empty() {
+        // Normalize cached Dune edges: "1inch Website: Default" → "1inch Integrators"
+        // then merge any duplicate (source, target) pairs that result from the rename.
+        let sankey_edges: Vec<SankeyEdgeRow> = merge_duplicate_edges(
+            sankey_edges
+                .into_iter()
+                .map(|mut e| {
+                    e.source = normalize_frontend_label(e.source);
+                    e.target = normalize_frontend_label(e.target);
+                    e
+                })
+                .collect(),
+        );
         let mut edges_for_payload = sankey_edges.clone();
-        if let Some(c) = cache.as_ref() {
-            if let Ok(of_rows) = c.load_kind(QueryKind::OrderflowView) {
-                let has_map = sqlite_has_table(db, "user_7702_map");
-                if !of_rows.is_empty() && has_map {
-                    match merge_l1_unlabeled_with_7702(&sankey_edges, db, &of_rows) {
-                        Ok(Some(merged)) => {
-                            tracing::info!(
-                                dune_edges = sankey_edges.len(),
-                                merged_edges = merged.len(),
-                                "Applied local EIP-7702 split to L1 edges"
-                            );
-                            edges_for_payload = merged;
-                        }
-                        Ok(None) => {}
-                        Err(e) => tracing::warn!("7702 L1 merge skipped: {e}"),
-                    }
+        let has_map = sqlite_has_table(db, "user_7702_map");
+        if !user_addr_rows.is_empty() && has_map {
+            match merge_l1_unlabeled_with_7702(&sankey_edges, db, &user_addr_rows) {
+                Ok(Some(merged)) => {
+                    tracing::info!(
+                        dune_edges = sankey_edges.len(),
+                        merged_edges = merged.len(),
+                        "Applied local EIP-7702 split to L1 edges"
+                    );
+                    edges_for_payload = merged;
                 }
+                Ok(None) => {}
+                Err(e) => tracing::warn!("7702 L1 merge skipped: {e}"),
             }
         }
         return Ok(OrderflowSnapshot {
@@ -208,17 +221,51 @@ fn l1_user_bucket_eoa_7702(
         if let Some(lab) = del_to_label.get(del) {
             return format!("User: EOA (7702 {lab})");
         }
-        return "User: EOA (7702)".into();
+        return "User: EOA (7702 unlabeled)".into();
     }
     "User: EOA (Unlabeled)".into()
 }
 
+fn merge_duplicate_edges(edges: Vec<SankeyEdgeRow>) -> Vec<SankeyEdgeRow> {
+    let mut map: HashMap<(String, String, String), (f64, f64)> = HashMap::new();
+    for e in edges {
+        let key = (e.edge_level.clone(), e.source.clone(), e.target.clone());
+        let ent = map.entry(key).or_insert((0.0, 0.0));
+        ent.0 += e.tx_count;
+        ent.1 += e.volume_m_usd;
+    }
+    let mut out: Vec<SankeyEdgeRow> = map
+        .into_iter()
+        .map(|((edge_level, source, target), (tx_count, volume_m_usd))| SankeyEdgeRow {
+            edge_level,
+            source,
+            target,
+            tx_count,
+            volume_m_usd,
+        })
+        .collect();
+    out.sort_by(|a, b| a.edge_level.cmp(&b.edge_level).then(a.source.cmp(&b.source)));
+    out
+}
+
+fn normalize_frontend_label(s: String) -> String {
+    if s == "Frontend: 1inch Website: Default" {
+        "Frontend: 1inch Integrators".into()
+    } else {
+        s
+    }
+}
+
 fn q7_frontend_bucket(frontend: Option<&str>) -> String {
     let f = frontend.unwrap_or("Unknown");
+    // "1inch Website: Default" is 1inch's own integrator entry point — merge into Integrators.
+    let normalized = match f {
+        "1inch Website: Default" => "1inch Integrators",
+        other => other,
+    };
     let keep = matches!(
-        f,
+        normalized,
         "1inch Integrators"
-            | "1inch Website: Default"
             | "Trust Wallet"
             | "MetaMask Swaps"
             | "Binance Wallet"
@@ -229,7 +276,7 @@ fn q7_frontend_bucket(frontend: Option<&str>) -> String {
             | "Fluid Frontend"
     );
     if keep {
-        format!("Frontend: {f}")
+        format!("Frontend: {normalized}")
     } else {
         "Frontend: Other Frontends".into()
     }
@@ -244,12 +291,12 @@ fn row_matches_1inch_router_orderflow(solver_raw: &str) -> bool {
 const UNLABELED_EOA_L1: &str = "User: EOA (Unlabeled)";
 
 /// Split only Dune **`L1>L2`** edges from **`User: EOA (Unlabeled)` → `Frontend:*`** using
-/// per-tx `orderflow_view` + local `user_7702_map` / `delegated_7702_labels`. All **`L2>L3`…`L5>L6`**
-/// edges stay exactly as from Dune.
+/// `USER_ADDR` rows from the Q7 sankey cache + local `user_7702_map` / `delegated_7702_labels`.
+/// All **`L2>L3`…`L5>L6`** edges stay exactly as from Dune.
 fn merge_l1_unlabeled_with_7702(
     dune_edges: &[SankeyEdgeRow],
     db: &Path,
-    orderflow_rows: &[Value],
+    user_addr_rows: &[UserAddrRow],
 ) -> anyhow::Result<Option<Vec<SankeyEdgeRow>>> {
     if !sqlite_has_table(db, "user_7702_map") {
         return Ok(None);
@@ -278,42 +325,32 @@ fn merge_l1_unlabeled_with_7702(
         return Ok(None);
     }
 
+    // Aggregate per-(7702_bucket, frontend) using USER_ADDR rows.
+    // user_addr_rows already cover all 1inch Router flows and are deduplicated per address,
+    // so no hash-dedup or solver filtering is needed here.
     let mut agg: HashMap<(String, String), (f64, f64)> = HashMap::new();
-    let mut seen_hash: HashSet<String> = HashSet::new();
 
-    for v in orderflow_rows {
-        let solver = v.get("solver").and_then(|x| x.as_str()).unwrap_or("");
-        if !row_matches_1inch_router_orderflow(solver) {
+    for row in user_addr_rows {
+        if row.user_class != UNLABELED_EOA_L1 {
             continue;
         }
-        if let Some(h) = v.get("hash").and_then(|x| x.as_str()) {
-            if !h.is_empty() && !seen_hash.insert(h.to_string()) {
-                continue;
-            }
-        }
-        let user_raw = match v.get("user").and_then(|x| x.as_str()) {
-            Some(u) if !u.trim().is_empty() => _normalize_addr_sql(u),
-            _ => continue,
-        };
-        let l1 = l1_user_bucket_eoa_7702(&user_raw, &user_to_del, &del_to_label);
-        let l2 = q7_frontend_bucket(v.get("frontend").and_then(|x| x.as_str()));
-        let trade_usd = json_f64_orderflow(v, "trade_usd").max(0.0);
-
-        let key = (l1, l2);
+        let l1 = l1_user_bucket_eoa_7702(&row.user_addr, &user_to_del, &del_to_label);
+        // row.frontend is already the normalized "Frontend: X" label from SQL.
+        let key = (l1, row.frontend.clone());
         let ent = agg.entry(key).or_insert((0.0, 0.0));
-        ent.0 += 1.0;
-        ent.1 += trade_usd;
+        ent.0 += row.tx_count;
+        ent.1 += row.volume_m_usd; // millions USD, consistent with SankeyEdgeRow
     }
 
     let mut new_l1l2: Vec<SankeyEdgeRow> = Vec::new();
 
     for (frontend_f, (old_tx, old_vol_m)) in unlabeled_to_frontend {
         let mut subs: Vec<(String, f64, f64)> = Vec::new();
-        for ((l1, fe), (tx, vol_usd)) in &agg {
+        for ((l1, fe), (tx, vol_m)) in &agg {
             if *fe != frontend_f {
                 continue;
             }
-            subs.push((l1.clone(), *tx, vol_usd / 1e6));
+            subs.push((l1.clone(), *tx, *vol_m));
         }
 
         if subs.is_empty() {
@@ -359,20 +396,97 @@ fn merge_l1_unlabeled_with_7702(
     Ok(Some(out))
 }
 
-fn json_f64_orderflow(v: &Value, key: &str) -> f64 {
-    v.get(key)
-        .and_then(|x| x.as_f64())
-        .or_else(|| {
-            v.get(key)
-                .and_then(|x| x.as_i64())
-                .map(|n| n as f64)
-        })
-        .or_else(|| {
-            v.get(key)
-                .and_then(|x| x.as_str())
-                .and_then(|s| s.parse().ok())
-        })
-        .unwrap_or(0.0)
+/// Return unique user addresses matching a user bucket display name and optionally a frontend
+/// sankey node name (e.g. `"Frontend: 1inch Integrators"`).
+///
+/// Primary path: reads `USER_ADDR` rows from the cached Q7 sankey result, which covers all
+/// 1inch Router flows (not just Fusion). Falls back to the old `orderflow_view` path when the
+/// cache predates the `USER_ADDR` UNION (i.e. no such rows present).
+pub fn query_filtered_addresses(
+    db: &Path,
+    user_type_display: &str,
+    frontend_node: Option<&str>,
+) -> Result<Vec<String>> {
+    let cache = Cache::open(db)?;
+    let sankey_rows = cache.load_kind(QueryKind::OneinchSankey)?;
+
+    let user_addr_rows: Vec<UserAddrRow> = sankey_rows
+        .iter()
+        .filter_map(UserAddrRow::from_value)
+        .collect();
+
+    if !user_addr_rows.is_empty() {
+        // USER_ADDR rows carry user_class as computed by Q7 SQL, which has no knowledge of
+        // the local user_7702_map. All EOA users come out as "User: EOA (Unlabeled)".
+        // We must re-apply the local 7702 lookup here so that clicking a "User (7702 X)"
+        // node returns the right addresses, consistent with merge_l1_unlabeled_with_7702.
+        let (user_to_del, del_to_label) = if sqlite_has_table(db, "user_7702_map") {
+            load_7702_maps(db).unwrap_or_default()
+        } else {
+            (HashMap::new(), HashMap::new())
+        };
+        let has_7702 = !user_to_del.is_empty();
+
+        let mut addrs: HashSet<String> = HashSet::new();
+        for row in &user_addr_rows {
+            let effective_class = if has_7702 && row.user_class == UNLABELED_EOA_L1 {
+                l1_user_bucket_eoa_7702(&row.user_addr, &user_to_del, &del_to_label)
+            } else {
+                row.user_class.clone()
+            };
+            let l1_display = effective_class.replace(": EOA ", " ");
+            if l1_display != user_type_display {
+                continue;
+            }
+            if let Some(fe_filter) = frontend_node {
+                if row.frontend != fe_filter {
+                    continue;
+                }
+            }
+            addrs.insert(row.user_addr.clone());
+        }
+        let mut result: Vec<String> = addrs.into_iter().collect();
+        result.sort();
+        return Ok(result);
+    }
+
+    // Fallback for caches that predate the USER_ADDR UNION (Fusion-only orderflow_view).
+    let rows = cache.load_kind(QueryKind::OrderflowView)?;
+    let (user_to_del, del_to_label) = load_7702_maps(db).unwrap_or_default();
+
+    let mut addrs: HashSet<String> = HashSet::new();
+
+    for v in &rows {
+        let solver = v.get("solver").and_then(|x| x.as_str()).unwrap_or("");
+        if !row_matches_1inch_router_orderflow(solver) {
+            continue;
+        }
+
+        let user_raw = match v.get("user").and_then(|x| x.as_str()) {
+            Some(u) if !u.trim().is_empty() => _normalize_addr_sql(u),
+            _ => continue,
+        };
+
+        let l1_raw = l1_user_bucket_eoa_7702(&user_raw, &user_to_del, &del_to_label);
+        let l1_display = l1_raw.replace(": EOA ", " ");
+        if l1_display != user_type_display {
+            continue;
+        }
+
+        if let Some(fe_filter) = frontend_node {
+            let raw_fe = v.get("frontend").and_then(|x| x.as_str());
+            let l2 = q7_frontend_bucket(raw_fe);
+            if l2 != fe_filter {
+                continue;
+            }
+        }
+
+        addrs.insert(user_raw);
+    }
+
+    let mut result: Vec<String> = addrs.into_iter().collect();
+    result.sort();
+    Ok(result)
 }
 
 fn extract_time_and_block_range(rows: &[Value]) -> (Option<[String; 2]>, Option<[u64; 2]>) {

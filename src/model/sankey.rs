@@ -84,6 +84,40 @@ pub fn demo_flow() -> LayeredFlow {
     LayeredFlow::from_pairs(vec![frontends, products, liquidity], edges)
 }
 
+/// One USER_ADDR row from Q7 (`edge_level = "USER_ADDR"`).
+///
+/// Produced by the `user_addr_agg` CTE: one row per unique (user_class, frontend_bucket, user_addr).
+/// Allows `query_filtered_addresses` to look up addresses directly from the sankey cache
+/// without needing `orderflow_view`.
+#[derive(Debug, Clone)]
+pub struct UserAddrRow {
+    /// L1 label, e.g. `"User: EOA (Unlabeled)"`.
+    pub user_class: String,
+    /// L2 label with prefix, e.g. `"Frontend: 1inch Integrators"`.
+    pub frontend: String,
+    /// Lowercase `0x…` address.
+    pub user_addr: String,
+    /// Transaction count for this (user_class, frontend, user_addr) combination.
+    pub tx_count: f64,
+    /// Volume in millions USD for this combination.
+    pub volume_m_usd: f64,
+}
+
+impl UserAddrRow {
+    pub fn from_value(v: &Value) -> Option<Self> {
+        if v.get("edge_level")?.as_str()? != "USER_ADDR" {
+            return None;
+        }
+        Some(Self {
+            user_class: v.get("source")?.as_str()?.to_string(),
+            frontend: v.get("target")?.as_str()?.to_string(),
+            user_addr: v.get("user_addr")?.as_str()?.to_string(),
+            tx_count: json_f64(v, "tx_count"),
+            volume_m_usd: json_f64(v, "volume_m_usd"),
+        })
+    }
+}
+
 /// One row from the 1inch Sankey edge query (Q7 / QueryKind::OneinchSankey).
 ///
 /// `edge_level` encodes the layer transition: "L1>L2", "L2>L3", "L3>L4", "L4>L5".
@@ -97,10 +131,10 @@ pub struct SankeyEdgeRow {
 }
 
 impl SankeyEdgeRow {
-    /// Returns `None` for META rows (time-range metadata) and malformed rows.
+    /// Returns `None` for META/USER_ADDR rows and malformed rows.
     pub fn from_value(v: &Value) -> Option<Self> {
         let edge_level = v.get("edge_level")?.as_str()?;
-        if edge_level == "META" {
+        if matches!(edge_level, "META" | "USER_ADDR") {
             return None;
         }
         Some(Self {

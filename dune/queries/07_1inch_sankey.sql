@@ -91,7 +91,7 @@ user_classified AS (
         CASE
           WHEN e7l.label IS NOT NULL AND TRIM(e7l.label) <> '' THEN
             'User: EOA (7702 ' || e7l.label || ')'
-          ELSE 'User: EOA (7702)'
+          ELSE 'User: EOA (7702 unlabeled)'
         END
       ELSE 'User: EOA (Unlabeled)'
     END AS user_class
@@ -111,7 +111,8 @@ base AS (
   SELECT
     user_class                                             AS l1,
     'Frontend: ' || CASE
-      WHEN frontend IN ('1inch Integrators','1inch Website: Default','Trust Wallet',
+      WHEN frontend = '1inch Website: Default' THEN '1inch Integrators'
+      WHEN frontend IN ('1inch Integrators','Trust Wallet',
                         'MetaMask Swaps','Binance Wallet','deBridge Frontend',
                         'Li.Fi Integrators','Rainbow Wallet','Cowswap Integrators',
                         'Fluid Frontend')
@@ -157,16 +158,37 @@ edges_l5_l6 AS (
   SELECT l5 AS source, l6 AS target,
          COUNT(*) AS tx_count, ROUND(SUM(trade_usd)/1e6,4) AS volume_m_usd
   FROM base GROUP BY 1,2
+),
+-- USER_ADDR rows: per-(user_class, frontend_bucket, user_addr) aggregate.
+-- edge_level = 'USER_ADDR', source = user_class (L1 label), target = frontend bucket (L2 label).
+-- Used by the web API to list addresses for a given Sankey node without needing orderflow_view.
+user_addr_agg AS (
+  SELECT
+    user_class                                                    AS source,
+    'Frontend: ' || CASE
+      WHEN frontend = '1inch Website: Default' THEN '1inch Integrators'
+      WHEN frontend IN ('1inch Integrators','Trust Wallet',
+                        'MetaMask Swaps','Binance Wallet','deBridge Frontend',
+                        'Li.Fi Integrators','Rainbow Wallet','Cowswap Integrators',
+                        'Fluid Frontend')
+      THEN frontend
+      ELSE 'Other Frontends'
+    END                                                           AS target,
+    CAST(user_addr AS VARCHAR)                                    AS user_addr,
+    COUNT(*)                                                      AS tx_count,
+    ROUND(SUM(trade_usd)/1e6, 4)                                 AS volume_m_usd
+  FROM user_classified
+  GROUP BY 1, 2, 3
 )
-SELECT 'L1>L2' AS edge_level, source, target, tx_count, volume_m_usd FROM edges_l1_l2
+SELECT 'L1>L2' AS edge_level, source, target, tx_count, volume_m_usd, NULL AS user_addr FROM edges_l1_l2
 UNION ALL
-SELECT 'L2>L3', source, target, tx_count, volume_m_usd FROM edges_l2_l3
+SELECT 'L2>L3', source, target, tx_count, volume_m_usd, NULL FROM edges_l2_l3
 UNION ALL
-SELECT 'L3>L4', source, target, tx_count, volume_m_usd FROM edges_l3_l4
+SELECT 'L3>L4', source, target, tx_count, volume_m_usd, NULL FROM edges_l3_l4
 UNION ALL
-SELECT 'L4>L5', source, target, tx_count, volume_m_usd FROM edges_l4_l5
+SELECT 'L4>L5', source, target, tx_count, volume_m_usd, NULL FROM edges_l4_l5
 UNION ALL
-SELECT 'L5>L6', source, target, tx_count, volume_m_usd FROM edges_l5_l6
+SELECT 'L5>L6', source, target, tx_count, volume_m_usd, NULL FROM edges_l5_l6
 UNION ALL
 -- META row: block_time range of all included transactions (UTC).
 -- source = MIN(block_time), target = MAX(block_time), both as VARCHAR.
@@ -174,6 +196,10 @@ SELECT 'META'                              AS edge_level,
        CAST(MIN(block_time) AS VARCHAR)    AS source,
        CAST(MAX(block_time) AS VARCHAR)    AS target,
        COUNT(*)                            AS tx_count,
-       ROUND(SUM(trade_usd)/1e6, 4)        AS volume_m_usd
+       ROUND(SUM(trade_usd)/1e6, 4)        AS volume_m_usd,
+       NULL                                AS user_addr
 FROM deduped
+UNION ALL
+SELECT 'USER_ADDR' AS edge_level, source, target, tx_count, volume_m_usd, user_addr
+FROM user_addr_agg
 ORDER BY edge_level, tx_count DESC

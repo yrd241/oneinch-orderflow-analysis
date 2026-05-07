@@ -9,8 +9,7 @@
 //!
 //! Env vars:
 //! - `DUNE_QUERY_1INCH_SANKEY`
-//! - `DUNE_QUERY_ORDERFLOW` — per-tx orderflow (for local EIP-7702 L1 split)
-//! - `DUNE_USE_FLASHBOTS_DEFAULTS` — `1` = default sankey Q7428851 + orderflow Q3184593
+//! - `DUNE_USE_FLASHBOTS_DEFAULTS` — `1` = default sankey Q7428851
 
 use crate::model::QueryKind;
 
@@ -51,18 +50,10 @@ impl QueryRegistry {
         }
 
         if entries.is_empty() && use_flashbots_defaults() {
-            tracing::info!(
-                "Using Flashbots defaults: sankey Q{} + orderflow Q{}",
-                QUERY_1INCH_SANKEY,
-                QUERY_ORDERFLOW_VIEW
-            );
+            tracing::info!("Using Flashbots defaults: sankey Q{}", QUERY_1INCH_SANKEY);
             entries.push(QueryEntry {
                 id: QUERY_1INCH_SANKEY,
                 kind: QueryKind::OneinchSankey,
-            });
-            entries.push(QueryEntry {
-                id: QUERY_ORDERFLOW_VIEW,
-                kind: QueryKind::OrderflowView,
             });
         }
 

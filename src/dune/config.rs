@@ -5,21 +5,17 @@
 //! The 1inch Router Sankey reads `dune.flashbots.result_overall_of`.
 //! Default query ID: `QUERY_1INCH_SANKEY` (7428851) — see dune/queries/07_1inch_sankey.sql.
 //!
-//! Set `DUNE_USE_FLASHBOTS_DEFAULTS=1` to use that query ID when `DUNE_QUERY_*` are unset.
+//! This default is always registered when no `DUNE_QUERY_1INCH_SANKEY` override
+//! is set, so `fetch` works out of the box with just `DUNE_API_KEY`.
 //!
 //! Env vars:
-//! - `DUNE_QUERY_1INCH_SANKEY`
-//! - `DUNE_USE_FLASHBOTS_DEFAULTS` — `1` = default sankey Q7428851
+//! - `DUNE_QUERY_1INCH_SANKEY` — override the default sankey query ID
 
 use crate::model::QueryKind;
 
 /// 1inch router Sankey edge query (reads dune.flashbots.result_overall_of).
 /// See dune/queries/07_1inch_sankey.sql
 pub const QUERY_1INCH_SANKEY: u64 = 7_428_851;
-
-/// Flashbots public orderflow view (one row per trade; includes `user`, `solver`, `frontend`).
-/// See `dune/queries/01_orderflow_view.sql`.
-pub const QUERY_ORDERFLOW_VIEW: u64 = 3_184_593;
 
 pub struct QueryEntry {
     pub id: u64,
@@ -45,24 +41,19 @@ impl QueryRegistry {
         if let Some(id) = env_u64("DUNE_QUERY_WALLET_APP") {
             entries.push(QueryEntry { id, kind: QueryKind::WalletApp });
         }
-        if let Some(id) = env_u64("DUNE_QUERY_1INCH_SANKEY") {
-            entries.push(QueryEntry { id, kind: QueryKind::OneinchSankey });
-        }
 
-        if entries.is_empty() && use_flashbots_defaults() {
-            tracing::info!("Using Flashbots defaults: sankey Q{}", QUERY_1INCH_SANKEY);
-            entries.push(QueryEntry {
-                id: QUERY_1INCH_SANKEY,
-                kind: QueryKind::OneinchSankey,
-            });
+        // The 1inch sankey query is the only data source the dashboard needs,
+        // so register the Flashbots default when no override is supplied.
+        let sankey_id = env_u64("DUNE_QUERY_1INCH_SANKEY").unwrap_or(QUERY_1INCH_SANKEY);
+        if sankey_id == QUERY_1INCH_SANKEY {
+            tracing::info!("Using default sankey query Q{QUERY_1INCH_SANKEY}");
+        } else {
+            tracing::info!("Using overridden sankey query Q{sankey_id}");
         }
-
-        if entries.is_empty() {
-            tracing::warn!(
-                "No DUNE_QUERY_* env vars set; fetch will have nothing to run. \
-                 Set DUNE_QUERY_1INCH_SANKEY or DUNE_USE_FLASHBOTS_DEFAULTS=1 (see README)."
-            );
-        }
+        entries.push(QueryEntry {
+            id: sankey_id,
+            kind: QueryKind::OneinchSankey,
+        });
 
         Self { entries }
     }
@@ -74,12 +65,4 @@ impl QueryRegistry {
 
 fn env_u64(key: &str) -> Option<u64> {
     std::env::var(key).ok().and_then(|s| s.parse().ok())
-}
-
-fn use_flashbots_defaults() -> bool {
-    matches!(
-        std::env::var("DUNE_USE_FLASHBOTS_DEFAULTS")
-            .map(|s| s == "1" || s.eq_ignore_ascii_case("true")),
-        Ok(true)
-    )
 }

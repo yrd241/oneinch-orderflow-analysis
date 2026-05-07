@@ -31,11 +31,14 @@ Additional pages break down user segments (labeled addresses, smart wallets, EOA
 cargo build --release
 
 export DUNE_API_KEY=<your key from dune.com/settings/api>
-export DUNE_USE_FLASHBOTS_DEFAULTS=1
 
 ./target/release/orderflow fetch   # pull data from Dune → SQLite cache
 ./target/release/orderflow serve   # start server at http://127.0.0.1:3000
 ```
+
+`fetch` runs the default 1inch Sankey query (Q7428851) automatically — no
+extra env vars required. Set `DUNE_QUERY_1INCH_SANKEY` only if you want to
+point at a different query ID.
 
 ## Optional: run without fetching (use bundled demo DB)
 
@@ -76,7 +79,6 @@ All flags can be set via environment variables (see `orderflow --help`).
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DUNE_API_KEY` | Yes | API key from dune.com/settings/api |
-| `DUNE_USE_FLASHBOTS_DEFAULTS` | No | Set to `1` to use built-in default query IDs |
 | `DUNE_QUERY_1INCH_SANKEY` | No | Override the Sankey query ID (default: `7428851`) |
 | `ORDERFLOW_DB` | No | Override the SQLite database path |
 | `DUNE_HTTP_TIMEOUT_SECS` | No | HTTP timeout in seconds (default: 600) |

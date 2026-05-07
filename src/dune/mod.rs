@@ -21,8 +21,7 @@ pub async fn run_fetch(args: FetchArgs) -> Result<()> {
     let registry = QueryRegistry::from_env();
     if registry.entries().is_empty() {
         anyhow::bail!(
-            "No DUNE_QUERY_* ids configured. Set e.g. DUNE_QUERY_1INCH_SANKEY=7428851 \
-             or DUNE_USE_FLASHBOTS_DEFAULTS=1 (see README and src/dune/config.rs)."
+            "No Dune queries registered. This shouldn't happen — please report a bug."
         );
     }
 

@@ -7,10 +7,9 @@ pub enum QueryKind {
     TopN,
     Timeseries,
     WalletApp,
-    /// Flashbots orderflow view (one row per user trade, includes block_time + block_number).
+    /// Legacy Flashbots orderflow view (per-tx). Kept so snapshot fallbacks
+    /// can still read older caches that predate the inline `USER_ADDR` rows.
     OrderflowView,
-    /// Flashbots liquidity view (per-hop legs, includes block_time + block_number).
-    LiquidityView,
     /// 1inch router Sankey edge data (source/target/tx_count/volume_m_usd per layer)
     OneinchSankey,
 }
@@ -23,7 +22,6 @@ impl QueryKind {
             QueryKind::Timeseries => "timeseries",
             QueryKind::WalletApp => "wallet_app",
             QueryKind::OrderflowView => "orderflow_view",
-            QueryKind::LiquidityView => "liquidity_view",
             QueryKind::OneinchSankey => "1inch_sankey",
         }
     }

@@ -38,6 +38,7 @@ KNOWN_FEE_RECIPIENT_LABELS: dict[str, str] = {
     "0x39041f1b366fe33f9a5a79de5120f2aee2577ebc": "Rabby Wallet",
     "0x4a183b7ed67b9e14b3f45abfb2cf44ed22c29e54": "Zerion",
     "0xcd6b980029e6e6e0733ac8ec3e02be9410d09799": "Fly.trade",
+    "0xb4f34d09124b8c9712957b76707b42510041ecbb": "SafePal",
 }
 
 

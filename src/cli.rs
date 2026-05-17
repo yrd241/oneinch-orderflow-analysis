@@ -21,6 +21,8 @@ pub enum Commands {
     Serve(ServeArgs),
     /// Export current snapshot as JSON (same payload as /api/summary)
     Export(ExportArgs),
+    /// Write static JSON under web/data/ for GitHub Pages
+    ExportWeb(ExportWebArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -48,4 +50,13 @@ pub struct ExportArgs {
     pub db: Option<PathBuf>,
     #[arg(long, default_value = "export.json")]
     pub out: PathBuf,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ExportWebArgs {
+    #[arg(long, env = "ORDERFLOW_DB")]
+    pub db: Option<PathBuf>,
+    /// Output directory (summary.json, addresses.json)
+    #[arg(long, default_value = "web/data")]
+    pub out_dir: PathBuf,
 }

@@ -24,3 +24,15 @@ Cargo.lock.bk
 
 # CLI export artifacts
 export.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Static site JSON (built by scripts/build_github_pages.sh / CI)
+web/data/*.json
+
+# Local pipeline outputs (rebuild locally; not needed for Pages CI)
+/results.csv
+/integrator_fee_recipients.csv
+/integrator_fee_recipients_mini.csv

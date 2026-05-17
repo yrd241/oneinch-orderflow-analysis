@@ -224,8 +224,7 @@
 
   async function load() {
     try {
-      const res = await fetch("/api/summary");
-      const body = await res.json();
+      const body = await OrderflowData.loadSummary();
       if (!body.ok || !body.data) {
         showError("API error: " + (body.error || res.statusText || "unknown"));
         return;
@@ -255,7 +254,7 @@
       populateFilters(fullPayload);
       renderSankey(fullPayload);
     } catch (e) {
-      showError("Failed to load /api/summary: " + e);
+      showError("Failed to load summary: " + e);
     }
   }
 

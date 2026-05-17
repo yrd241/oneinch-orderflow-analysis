@@ -256,8 +256,7 @@
 
   async function load() {
     try {
-      const res = await fetch("/api/summary");
-      const body = await res.json();
+      const body = await OrderflowData.loadSummary();
       if (!body.ok || !body.data) {
         showError("API error: " + (body.error || res.statusText || "unknown"));
         return;
@@ -282,7 +281,7 @@
       populateFilters(extractL1L2(fullPayload));
       refresh();
     } catch (e) {
-      showError("Failed to load /api/summary: " + e);
+      showError("Failed to load summary: " + e);
     }
   }
 
@@ -298,16 +297,11 @@
     const modalBody = document.getElementById("modal-body");
     modalBody.replaceChildren();
 
-    const params = new URLSearchParams({ user_type: bucketName });
-    if (frontend) params.set("frontend", frontend);
-
     let addrs = [];
     try {
-      const res = await fetch("/api/addresses?" + params);
-      const body = await res.json();
-      addrs = (body.ok && body.addresses) ? body.addresses : [];
+      addrs = await OrderflowData.lookupAddresses(bucketName, frontend);
     } catch (e) {
-      console.error("Failed to fetch addresses:", e);
+      console.error("Failed to load addresses:", e);
     }
 
     document.getElementById("modal-count").textContent = addrs.length + " addresses";

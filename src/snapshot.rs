@@ -489,6 +489,55 @@ pub fn query_filtered_addresses(
     Ok(result)
 }
 
+/// Precompute address lists for every `(user_type, frontend)` pair used by the EOA/Users UI.
+/// Keys match `GET /api/addresses`: `"User (Unlabeled)|Frontend: 1inch Integrators"`, or
+/// `"User (Unlabeled)|"` when no frontend filter.
+pub fn export_addresses_index(db: &Path) -> Result<HashMap<String, Vec<String>>> {
+    let cache = Cache::open(db)?;
+    let sankey_rows = cache.load_kind(QueryKind::OneinchSankey)?;
+
+    let user_addr_rows: Vec<UserAddrRow> = sankey_rows
+        .iter()
+        .filter_map(UserAddrRow::from_value)
+        .collect();
+
+    if user_addr_rows.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let (user_to_del, del_to_label) = if sqlite_has_table(db, "user_7702_map") {
+        load_7702_maps(db).unwrap_or_default()
+    } else {
+        (HashMap::new(), HashMap::new())
+    };
+    let has_7702 = !user_to_del.is_empty();
+
+    let mut keys: HashSet<(String, String)> = HashSet::new();
+    for row in &user_addr_rows {
+        let effective_class = if has_7702 && row.user_class == UNLABELED_EOA_L1 {
+            l1_user_bucket_eoa_7702(&row.user_addr, &user_to_del, &del_to_label)
+        } else {
+            row.user_class.clone()
+        };
+        let l1_display = effective_class.replace(": EOA ", " ");
+        keys.insert((l1_display.clone(), String::new()));
+        keys.insert((l1_display, row.frontend.clone()));
+    }
+
+    let mut index = HashMap::new();
+    for (user_type, frontend) in keys {
+        let frontend_opt = if frontend.is_empty() {
+            None
+        } else {
+            Some(frontend.as_str())
+        };
+        let addrs = query_filtered_addresses(db, &user_type, frontend_opt)?;
+        let key = format!("{user_type}|{frontend}");
+        index.insert(key, addrs);
+    }
+    Ok(index)
+}
+
 fn extract_time_and_block_range(rows: &[Value]) -> (Option<[String; 2]>, Option<[u64; 2]>) {
     let mut min_block: Option<u64> = None;
     let mut max_block: Option<u64> = None;

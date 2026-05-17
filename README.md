@@ -55,6 +55,21 @@ Notes:
 - The demo DB is a **time-window snapshot**, not live data.
 - If you want fresh data, run `orderflow fetch` to rebuild your own local cache.
 
+## GitHub Pages (static demo)
+
+The UI can run without a server: JSON under `web/data/` replaces `/api/*`.
+
+```bash
+./scripts/build_github_pages.sh   # needs database/orderflow.db (bundled demo OK)
+# open web/index.html via a local static server, or push to GitHub Pages
+```
+
+On push to `main`, `.github/workflows/github-pages.yml` builds `summary.json` + `addresses.json` from the demo DB and deploys the `web/` folder.
+
+**Repo settings:** Settings → Pages → Source: **GitHub Actions**.
+
+`orderflow serve` still works: the frontend tries `data/*.json` first, then falls back to the Rust API.
+
 ## CLI commands
 
 | Command | Description |
@@ -62,6 +77,7 @@ Notes:
 | `orderflow fetch` | Execute Dune queries and write results to local SQLite cache |
 | `orderflow serve` | Serve the web UI and `GET /api/summary` JSON endpoint |
 | `orderflow export` | Write the current snapshot to a JSON file (same shape as `/api/summary`) |
+| `orderflow export-web` | Write `web/data/summary.json` + `addresses.json` for GitHub Pages |
 
 **Common flags:**
 

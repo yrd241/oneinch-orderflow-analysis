@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -40,6 +41,7 @@ pub async fn run(args: ServeArgs) -> Result<()> {
     let app = Router::new()
         .route("/api/summary", get(api_summary))
         .route("/api/addresses", get(api_addresses))
+        .route("/api/integrators/recipients", get(api_integrators_recipients))
         .with_state(state)
         .fallback_service(ServeDir::new(static_dir))
         .layer(CorsLayer::permissive());
@@ -111,4 +113,47 @@ impl ApiResponse {
 
 fn resolve_db(override_path: Option<PathBuf>) -> PathBuf {
     override_path.unwrap_or_else(paths::default_cache_db)
+}
+
+fn integrators_json_path() -> PathBuf {
+    if let Ok(p) = std::env::var("ORDERFLOW_INTEGRATORS_JSON") {
+        return PathBuf::from(p);
+    }
+    web_root().join("data").join("integrator_recipients.json")
+}
+
+async fn api_integrators_recipients() -> impl IntoResponse {
+    let path = integrators_json_path();
+    let path_display = path.display().to_string();
+    match tokio::task::spawn_blocking({
+        let path = path.clone();
+        move || fs::read_to_string(&path)
+    })
+    .await
+    {
+        Ok(Ok(text)) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(data) => Json(serde_json::json!({ "ok": true, "data": data })).into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "ok": false, "error": format!("invalid JSON: {e}") })),
+            )
+                .into_response(),
+        },
+        Ok(Err(e)) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "ok": false,
+                "error": format!(
+                    "missing {}; run scripts/build_integrator_recipient_sankey.py ({e})",
+                    path_display
+                )
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "ok": false, "error": format!("task panic: {e}") })),
+        )
+            .into_response(),
+    }
 }

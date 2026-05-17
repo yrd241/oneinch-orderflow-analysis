@@ -4,13 +4,12 @@
 
   const filterEls = {
     recipient: document.getElementById("filter-recipient"),
-    labeledOnly: document.getElementById("filter-labeled-only"),
     reset: document.getElementById("filter-reset"),
   };
 
   let fullPayload = null;
   let recipientsDetail = {};
-  const filterState = { recipient: "__ALL__", labeledOnly: false };
+  const filterState = { recipient: "__ALL__" };
 
   function fmtM(usd) {
     if (usd >= 1e9) return (usd / 1e9).toFixed(2) + "B";
@@ -36,10 +35,6 @@
     "0x4a183b7ed67b9e14b3f45abfb2cf44ed22c29e54": "Zerion",
   };
 
-  const LABELED_SANKEY_NAMES = new Set(
-    Object.values(FEE_RECIPIENT_BY_ADDR).map((name) => RECIPIENT_PREFIX + name)
-  );
-
   function recipientDisplayName(sankeyLabel, detail) {
     const d = detail || recipientsDetail[sankeyLabel] || {};
     const wallet = d.wallet || FEE_RECIPIENT_BY_ADDR[(d.address || "").toLowerCase()];
@@ -50,20 +45,6 @@
       return rest;
     }
     return sankeyLabel;
-  }
-
-  function recipientHasLabel(sankeyLabel) {
-    if (LABELED_SANKEY_NAMES.has(sankeyLabel)) return true;
-    const d = recipientsDetail[sankeyLabel] || {};
-    if (d.wallet) return true;
-    const addr = (d.address || "").toLowerCase();
-    return Boolean(addr && FEE_RECIPIENT_BY_ADDR[addr]);
-  }
-
-  function syncLabeledOnlyFromUi() {
-    if (filterEls.labeledOnly) {
-      filterState.labeledOnly = filterEls.labeledOnly.checked;
-    }
   }
 
   function volumeBySource(links) {
@@ -115,9 +96,6 @@
 
   function applyFilters(l1l2) {
     let links = l1l2.links;
-    if (filterState.labeledOnly) {
-      links = links.filter((l) => recipientHasLabel(l.source));
-    }
     if (filterState.recipient !== "__ALL__") {
       links = links.filter((l) => l.source === filterState.recipient);
     }
@@ -130,17 +108,7 @@
   }
 
   function populateFilters(l1l2) {
-    let names = l1l2.nodes.filter((n) => n.depth === 0).map((n) => n.name);
-    if (filterState.labeledOnly) {
-      names = names.filter(recipientHasLabel);
-    }
-    if (
-      filterState.recipient !== "__ALL__" &&
-      filterState.labeledOnly &&
-      !recipientHasLabel(filterState.recipient)
-    ) {
-      filterState.recipient = "__ALL__";
-    }
+    const names = l1l2.nodes.filter((n) => n.depth === 0).map((n) => n.name);
     setOptions(filterEls.recipient, sortRecipientNames(names, l1l2.links), filterState.recipient);
   }
 
@@ -151,7 +119,7 @@
       chart.setOption({
         backgroundColor: "transparent",
         title: {
-          text: "No labeled integrators",
+          text: "No integrators",
           left: "center",
           top: "middle",
           textStyle: {
@@ -187,54 +155,54 @@
 
     chart.setOption(
       {
-      backgroundColor: "transparent",
-      title: { show: false },
-      tooltip: {
-        trigger: "item",
-        triggerOn: "mousemove",
-        backgroundColor: "#1a1208",
-        borderColor: "#c0392b",
-        borderWidth: 2,
-        padding: [10, 14],
-        textStyle: {
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: 12,
-          color: "#f0ede4",
-          lineHeight: 20,
-        },
-        formatter(p) {
-          if (p.dataType === "edge") {
-            const d = p.data;
-            const txs = Math.round(d.tx_count != null ? d.tx_count : d.value).toLocaleString();
-            const vol = d.volume_usd != null ? "\nVOL  $" + fmtM(d.volume_usd) : "";
-            const src = recipientDisplayName(d.source);
-            return src + "\n> " + d.target + "\nTXS  " + txs + vol;
-          }
-          return recipientDisplayName(p.name);
-        },
-      },
-      series: [
-        {
-          type: "sankey",
-          layout: "none",
-          layoutIterations: 0,
-          emphasis: { focus: "adjacency" },
-          nodeAlign: "justify",
-          nodeGap: 16,
-          nodeWidth: 14,
-          lineStyle: { color: "gradient", curveness: 0.5, opacity: 0.25 },
-          label: {
-            color: "#1a1208",
-            fontSize: 12,
+        backgroundColor: "transparent",
+        title: { show: false },
+        tooltip: {
+          trigger: "item",
+          triggerOn: "mousemove",
+          backgroundColor: "#1a1208",
+          borderColor: "#c0392b",
+          borderWidth: 2,
+          padding: [10, 14],
+          textStyle: {
             fontFamily: "'Press Start 2P', monospace",
-            formatter: (params) => recipientDisplayName(params.name),
+            fontSize: 12,
+            color: "#f0ede4",
+            lineHeight: 20,
           },
-          itemStyle: { borderWidth: 0 },
-          data: nodes,
-          links,
+          formatter(p) {
+            if (p.dataType === "edge") {
+              const d = p.data;
+              const txs = Math.round(d.tx_count != null ? d.tx_count : d.value).toLocaleString();
+              const vol = d.volume_usd != null ? "\nVOL  $" + fmtM(d.volume_usd) : "";
+              const src = recipientDisplayName(d.source);
+              return src + "\n> " + d.target + "\nTXS  " + txs + vol;
+            }
+            return recipientDisplayName(p.name);
+          },
         },
-      ],
-    },
+        series: [
+          {
+            type: "sankey",
+            layout: "none",
+            layoutIterations: 0,
+            emphasis: { focus: "adjacency" },
+            nodeAlign: "justify",
+            nodeGap: 16,
+            nodeWidth: 14,
+            lineStyle: { color: "gradient", curveness: 0.5, opacity: 0.25 },
+            label: {
+              color: "#1a1208",
+              fontSize: 12,
+              fontFamily: "'Press Start 2P', monospace",
+              formatter: (params) => recipientDisplayName(params.name),
+            },
+            itemStyle: { borderWidth: 0 },
+            data: nodes,
+            links,
+          },
+        ],
+      },
       true
     );
 
@@ -290,14 +258,6 @@
     renderTable(filtered);
   }
 
-  function onLabeledOnlyChange() {
-    syncLabeledOnlyFromUi();
-    if (fullPayload) {
-      populateFilters(extractL1L2(fullPayload));
-    }
-    refresh();
-  }
-
   function wireFilters() {
     if (!filterEls.recipient || !filterEls.reset) {
       console.warn("integrators: filter controls missing from DOM");
@@ -307,15 +267,8 @@
       filterState.recipient = filterEls.recipient.value;
       refresh();
     });
-    if (filterEls.labeledOnly) {
-      filterEls.labeledOnly.addEventListener("change", onLabeledOnlyChange);
-    } else {
-      console.warn("integrators: #filter-labeled-only not found");
-    }
     filterEls.reset.addEventListener("click", () => {
       filterState.recipient = "__ALL__";
-      filterState.labeledOnly = false;
-      if (filterEls.labeledOnly) filterEls.labeledOnly.checked = false;
       if (fullPayload) {
         populateFilters(extractL1L2(fullPayload));
         refresh();
@@ -363,7 +316,6 @@
       }
 
       fullPayload = d;
-      syncLabeledOnlyFromUi();
       populateFilters(extractL1L2(fullPayload));
       refresh();
     } catch (e) {

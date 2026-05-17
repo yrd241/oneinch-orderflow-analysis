@@ -1,0 +1,4 @@
+/* One step larger type scale for all dashboard pages (rem-based). */
+html {
+  font-size: 17.5px;
+}

@@ -142,7 +142,7 @@
         padding: [10, 14],
         textStyle: {
           fontFamily: "'Press Start 2P', monospace",
-          fontSize: 11,
+          fontSize: 12,
           color: "#f0ede4",
           lineHeight: 20,
         },
@@ -171,7 +171,7 @@
           lineStyle: { color: "gradient", curveness: 0.5, opacity: 0.25 },
           label: {
             color: "#1a1208",
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: "'Press Start 2P', monospace",
             fontWeight: "normal",
           },

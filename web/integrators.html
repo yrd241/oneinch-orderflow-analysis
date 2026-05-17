@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>1INCH INTEGRATORS</title>
+  <title>1INCH USERS</title>
+  <link rel="stylesheet" href="site.css" />
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -170,44 +171,10 @@
       transform: translate(2px, 2px);
       box-shadow: 1px 1px 0px var(--ink);
     }
-    .filters .f-check {
-      min-width: auto;
-      flex-direction: row;
-      align-items: center;
-      gap: 0.5rem;
-      padding-bottom: 0.55rem;
-    }
-    .filters .f-check input {
-      width: 1rem;
-      height: 1rem;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-    .filters .f-check label {
-      cursor: pointer;
-      color: var(--ink);
-      white-space: nowrap;
-    }
-    #sankey-integrators {
+
+    #sankey-eoa {
       width: 100%;
       height: 560px;
-    }
-
-    .meta-bar {
-      padding: 0.35rem 1rem;
-      font-size: 0.48rem;
-      letter-spacing: 0.08em;
-      color: var(--accent2);
-      border-bottom: 1px solid rgba(26,18,8,0.08);
-    }
-
-    .modal-body .addr-full {
-      display: block;
-      font-size: 0.55rem;
-      color: var(--accent2);
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 2px solid rgba(26,18,8,0.15);
     }
 
     /* table card */
@@ -375,51 +342,50 @@
 </head>
 <body>
   <header>
-    <h1>1INCH <span class="hi">INTEGRATORS</span></h1>
+    <h1>1INCH <span class="hi">USERS ANALYSIS</span></h1>
     <nav style="margin-top:1rem;display:flex;gap:2rem;font-size:0.8rem;letter-spacing:0.12em;">
       <a href="index.html" style="color:var(--muted);text-decoration:none;">ORDERFLOW</a>
-      <a href="users.html" style="color:var(--muted);text-decoration:none;">USERS</a>
-      <span style="color:var(--accent);">▶ RECIPIENTS</span>
+      <a href="users.html" style="color:var(--muted);text-decoration:none;">INTEGRATORS</a>
+      <span style="color:var(--accent);">▶ USERS</span>
     </nav>
   </header>
 
   <main>
     <div class="card">
       <div class="card-header">
-        <h2>RECIPIENT → 1INCH INTEGRATORS</h2>
+        <h2>USER → FRONTEND</h2>
       </div>
       <div class="time-bar" id="time-bar"></div>
-      <div class="meta-bar" id="meta-bar"></div>
       <div class="filters" id="filters">
         <div class="f">
-          <label for="filter-recipient">Fee recipient</label>
-          <select id="filter-recipient"></select>
+          <label for="filter-user">User</label>
+          <select id="filter-user"></select>
         </div>
-        <div class="f f-check">
-          <input type="checkbox" id="filter-labeled-only" />
-          <label for="filter-labeled-only">Labeled only</label>
+        <div class="f">
+          <label for="filter-frontend">Frontend</label>
+          <select id="filter-frontend"></select>
         </div>
         <button id="filter-reset" type="button">RESET</button>
       </div>
-      <div id="sankey-integrators"></div>
+      <div id="sankey-eoa"></div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <h2>RECIPIENT BREAKDOWN</h2>
-        <span class="card-tag">sorted by volume</span>
+        <h2>USER BREAKDOWN</h2>
+        <span class="card-tag">sorted by tx count</span>
       </div>
       <div class="table-wrap">
         <table id="eoa-table">
           <thead>
             <tr>
-              <th>RECIPIENT</th>
+              <th>USER TYPE</th>
               <th style="text-align:right">TXS</th>
               <th style="text-align:right">VOL (USD)</th>
               <th style="min-width:160px">SHARE</th>
             </tr>
           </thead>
-          <tbody id="integrators-tbody"></tbody>
+          <tbody id="eoa-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -441,11 +407,11 @@
   </div>
 
   <footer>
-    <span>API <code>/api/integrators/recipients</code></span>
+    <span>API <code>/api/summary</code></span>
     <span>STACK <code>RUST · JS · HTML</code></span>
   </footer>
 
   <script src="data-api.js"></script>
-  <script src="integrators.js?v=5"></script>
+  <script src="eoa.js?v=8"></script>
 </body>
 </html>

@@ -30,7 +30,6 @@
       image-rendering: pixelated;
     }
 
-    /* ── SCANLINE overlay ── */
     body::after {
       content: '';
       pointer-events: none;
@@ -46,7 +45,6 @@
       z-index: 9999;
     }
 
-    /* ── HEADER ── */
     header {
       border-bottom: var(--border);
       padding: 1.5rem 2rem;
@@ -63,14 +61,15 @@
 
     header h1 .hi { color: var(--accent); }
 
-    /* ── MAIN ── */
     main {
       max-width: 1400px;
       margin: 0 auto;
       padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
     }
 
-    /* ── PIXEL CARD ── */
     .card {
       background: var(--card);
       border: var(--border);
@@ -78,7 +77,6 @@
       position: relative;
     }
 
-    /* pixel corner notches */
     .card::before {
       content: '';
       position: absolute;
@@ -113,7 +111,6 @@
       color: #a09080;
     }
 
-    /* blinking cursor after title */
     .card-header h2::after {
       content: '█';
       margin-left: 0.4em;
@@ -144,7 +141,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.35rem;
-      min-width: 180px;
+      min-width: 200px;
     }
     .filters label {
       font-size: 0.55rem;
@@ -174,13 +171,69 @@
       transform: translate(2px, 2px);
       box-shadow: 1px 1px 0px var(--ink);
     }
-
-    #sankey {
+    #sankey-integrators {
       width: 100%;
-      height: 640px;
+      height: 560px;
     }
 
-    /* ── FOOTER ── */
+    .meta-bar {
+      padding: 0.35rem 1rem;
+      font-size: 0.48rem;
+      letter-spacing: 0.08em;
+      color: var(--accent2);
+      border-bottom: 1px solid rgba(26,18,8,0.08);
+    }
+
+    .modal-body .addr-full {
+      display: block;
+      font-size: 0.55rem;
+      color: var(--accent2);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid rgba(26,18,8,0.15);
+    }
+
+    /* table card */
+    .table-wrap {
+      overflow-x: auto;
+      padding: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.55rem;
+      letter-spacing: 0.05em;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 2px solid var(--ink);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid rgba(26,18,8,0.1);
+    }
+
+    tr:hover td { background: rgba(192,57,43,0.05); }
+
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .bar-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .bar {
+      height: 8px;
+      background: var(--accent);
+      min-width: 2px;
+    }
+
     footer {
       border-top: var(--border);
       padding: 0.8rem 2rem;
@@ -204,56 +257,173 @@
       font-size: 0.6rem;
       line-height: 2;
     }
+
+    /* ── MODAL ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26,18,8,0.55);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--card);
+      border: var(--border);
+      box-shadow: var(--shadow);
+      width: min(640px, 92vw);
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .modal-head {
+      background: var(--ink);
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+    .modal-head h3 {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--card);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .modal-head .modal-count {
+      font-size: 0.5rem;
+      color: #a09080;
+      white-space: nowrap;
+    }
+    .modal-close {
+      font-family: inherit;
+      font-size: 1.1rem;
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 0 0.3rem;
+      line-height: 1;
+    }
+
+    .modal-toolbar {
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid rgba(26,18,8,0.15);
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .modal-toolbar button {
+      font-family: inherit;
+      font-size: 0.55rem;
+      padding: 0.35rem 0.6rem;
+      border: 2px solid var(--ink);
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: 2px 2px 0 var(--ink);
+      cursor: pointer;
+      letter-spacing: 0.08em;
+    }
+    .modal-toolbar button:active {
+      transform: translate(1px,1px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      padding: 0.75rem 1rem;
+      font-size: 0.52rem;
+      line-height: 2;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+    }
+    .modal-body .addr {
+      display: block;
+      color: var(--ink);
+      opacity: 0.85;
+      border-bottom: 1px solid rgba(26,18,8,0.06);
+      padding: 0.1rem 0;
+    }
+    .modal-body .addr:hover { opacity: 1; background: rgba(192,57,43,0.04); }
   </style>
 </head>
-<body>
+<body data-page="integrators">
   <header>
     <h1><a href="index.html">1INCH <span class="hi">ORDERFLOW ANALYSIS</span></a></h1>
     <nav style="margin-top:1rem;display:flex;gap:2rem;font-size:0.8rem;letter-spacing:0.12em;">
-      <span style="color:var(--accent);">▶ ORDERFLOW</span>
-      <a href="integrators.html" style="color:var(--muted);text-decoration:none;">INTEGRATORS</a>
+      <span style="color:var(--accent);">▶ INTEGRATORS</span>
+      <a href="integrators.html" style="color:var(--muted);text-decoration:none;">ORDERFLOW</a>
     </nav>
   </header>
 
   <main>
     <div class="card">
       <div class="card-header">
-        <h2>ORDER FLOW</h2>
+        <h2>INTEGRATOR → 1INCH INTEGRATORS</h2>
       </div>
       <div class="time-bar" id="time-bar"></div>
+      <div class="meta-bar" id="meta-bar"></div>
       <div class="filters" id="filters">
         <div class="f">
-          <label for="filter-frontend">Frontend</label>
-          <select id="filter-frontend"></select>
-        </div>
-        <div class="f">
-          <label for="filter-solver">Solver</label>
-          <select id="filter-solver"></select>
-        </div>
-        <div class="f">
-          <label for="filter-mempool">Mempool</label>
-          <select id="filter-mempool"></select>
-        </div>
-        <div class="f">
-          <label for="filter-ofa">OFA / Order Flow Action</label>
-          <select id="filter-ofa"></select>
-        </div>
-        <div class="f">
-          <label for="filter-builder">Builder</label>
-          <select id="filter-builder"></select>
+          <label for="filter-recipient">Integrator</label>
+          <select id="filter-recipient"></select>
         </div>
         <button id="filter-reset" type="button">RESET</button>
       </div>
-      <div id="sankey"></div>
+      <div id="sankey-integrators"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>INTEGRATOR BREAKDOWN</h2>
+        <span class="card-tag">sorted by volume</span>
+      </div>
+      <div class="table-wrap">
+        <table id="eoa-table">
+          <thead>
+            <tr>
+              <th>INTEGRATOR</th>
+              <th style="text-align:right">TXS</th>
+              <th style="text-align:right">VOL (USD)</th>
+              <th style="min-width:160px">SHARE</th>
+            </tr>
+          </thead>
+          <tbody id="integrators-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </main>
 
+  <!-- Address modal -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <span class="modal-count" id="modal-count"></span>
+        <button class="modal-close" id="modal-close" title="Close">✕</button>
+      </div>
+      <div class="modal-toolbar">
+        <button id="modal-copy">COPY ALL</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
   <footer>
-    <span>API <code>/api/summary</code></span>
+    <span>API <code>/api/integrators/recipients</code></span>
     <span>STACK <code>RUST · JS · HTML</code></span>
   </footer>
 
   <script src="data-api.js"></script>
-  <script src="app.js?v=12"></script>
+  <script src="integrators.js?v=16"></script>
 </body>
 </html>

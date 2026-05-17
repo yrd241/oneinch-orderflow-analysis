@@ -310,7 +310,7 @@
         const shown = d.meta.unique_recipients_shown ?? total;
         const topN = d.meta.top_n || 10;
         meta.textContent =
-          `${d.meta.tx_with_fee || 0} / ${d.meta.tx_rows || 0} txs with fee · ` +
+          `${d.meta.tx_with_fee || 0} / ${d.meta.tx_rows || 0} txs with fee recipient · ` +
           `top ${topN}: ${shown} shown` +
           (total > shown ? ` (${total} parsed)` : "");
       }

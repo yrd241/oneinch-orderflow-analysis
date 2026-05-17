@@ -1,5 +1,7 @@
 /target
 /data
+!data/github_pages/
+!data/github_pages/**
 .env
 *.db
 *.db-shm

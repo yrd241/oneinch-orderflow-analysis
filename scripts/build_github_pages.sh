@@ -23,17 +23,26 @@ fi
 "$BIN" export-web --db "$DB" --out-dir "$ROOT/web/data"
 
 INTEGRATOR_OUT="$ROOT/web/data/integrator_recipients.json"
+PAGES_INTEGRATOR="$ROOT/data/github_pages/integrator_recipients.json"
+INTEGRATOR_BUILD_ARGS=(--labeled-only --no-other --top 10 --max-hashes 100)
+
 if [[ -f "$ROOT/results.csv" && -f "$ROOT/integrator_fee_recipients_mini.csv" ]]; then
-  echo "Rebuilding integrator_recipients.json (full corpus)…"
+  echo "Building labeled-only integrator JSON (Pages snapshot + web/data)…"
   python3 "$ROOT/scripts/build_integrator_recipient_sankey.py" \
     --txs "$ROOT/results.csv" \
     --fees "$ROOT/integrator_fee_recipients_mini.csv" \
-    --out "$INTEGRATOR_OUT"
+    "${INTEGRATOR_BUILD_ARGS[@]}" \
+    --out "$PAGES_INTEGRATOR"
+  cp "$PAGES_INTEGRATOR" "$INTEGRATOR_OUT"
+elif [[ -f "$PAGES_INTEGRATOR" ]]; then
+  echo "Using committed labeled integrator snapshot (data/github_pages/)…"
+  cp "$PAGES_INTEGRATOR" "$INTEGRATOR_OUT"
 elif [[ -f "$ROOT/samples/1inch_Integrators.csv" && -f "$ROOT/samples/integrator_fee_recipients.csv" ]]; then
-  echo "Rebuilding integrator_recipients.json (samples/)…"
+  echo "Rebuilding integrator_recipients.json from samples/ (labeled-only)…"
   python3 "$ROOT/scripts/build_integrator_recipient_sankey.py" \
     --txs "$ROOT/samples/1inch_Integrators.csv" \
     --fees "$ROOT/samples/integrator_fee_recipients.csv" \
+    "${INTEGRATOR_BUILD_ARGS[@]}" \
     --out "$INTEGRATOR_OUT"
 elif [[ ! -f "$INTEGRATOR_OUT" ]]; then
   echo "Warning: integrator_recipients.json missing; integrators page will be empty." >&2

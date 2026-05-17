@@ -70,6 +70,15 @@ On push to `main`, `.github/workflows/github-pages.yml` builds `summary.json` + 
 
 `orderflow serve` still works: the frontend tries `data/*.json` first, then falls back to the Rust API.
 
+**Integrators / Recipients on Pages** uses only known wallet labels (Coinbase, Rabby, Zerion) — not the full ~72k tx corpus. The snapshot lives in `data/github_pages/integrator_recipients.json` (~25 KB). Regenerate after refreshing fee decode data:
+
+```bash
+python3 scripts/build_integrator_recipient_sankey.py \
+  --txs results.csv --fees integrator_fee_recipients_mini.csv \
+  --labeled-only --max-hashes 100 --no-other \
+  --out data/github_pages/integrator_recipients.json
+```
+
 ## CLI commands
 
 | Command | Description |

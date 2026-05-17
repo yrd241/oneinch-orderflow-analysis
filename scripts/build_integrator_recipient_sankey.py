@@ -98,7 +98,11 @@ def load_txs(path: Path) -> dict[str, dict]:
     return by_hash
 
 
-def load_fees(path: Path) -> dict[str, dict]:
+def _labeled_recipients(recipients: list[str]) -> list[str]:
+    return [a for a in recipients if _norm_addr(a) in KNOWN_FEE_RECIPIENT_LABELS]
+
+
+def load_fees(path: Path, *, labeled_only: bool = False) -> dict[str, dict]:
     by_hash: dict[str, dict] = {}
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
@@ -106,9 +110,13 @@ def load_fees(path: Path) -> dict[str, dict]:
             if not h or row.get("error"):
                 continue
             recipients = all_fee_recipients(row)
+            if labeled_only:
+                recipients = _labeled_recipients(recipients)
             if not recipients:
                 continue
             primary = primary_max_fee(row) or recipients[0]
+            if labeled_only and _norm_addr(primary) not in KNOWN_FEE_RECIPIENT_LABELS:
+                primary = recipients[0]
             by_hash[h] = {
                 "primary": primary,
                 "recipients": recipients,
@@ -163,6 +171,8 @@ def build(
     *,
     top_n: int = DEFAULT_TOP_N,
     rollup_other: bool = False,
+    labeled_only: bool = False,
+    max_hashes_per_recipient: int | None = None,
 ) -> dict:
     agg: dict[str, dict] = defaultdict(
         lambda: {"tx_count": 0, "trade_usd": 0.0, "hashes": [], "addr": ""}
@@ -170,6 +180,7 @@ def build(
     unknown = {"tx_count": 0, "trade_usd": 0.0, "hashes": []}
     times: list[datetime] = []
 
+    included_txs = 0
     for h, tx in txs.items():
         bt = _parse_time(tx.get("block_time", ""))
         if bt:
@@ -177,11 +188,18 @@ def build(
         usd = tx["trade_usd"]
         fee = fees.get(h)
         if not fee:
-            unknown["tx_count"] += 1
-            unknown["trade_usd"] += usd
-            unknown["hashes"].append(h)
+            if not labeled_only:
+                unknown["tx_count"] += 1
+                unknown["trade_usd"] += usd
+                unknown["hashes"].append(h)
             continue
-        for addr in fee["recipients"]:
+        addrs = fee["recipients"]
+        if labeled_only:
+            addrs = _labeled_recipients(addrs)
+            if not addrs:
+                continue
+        included_txs += 1
+        for addr in addrs:
             key = _recipient_label(addr)
             rec = agg[key]
             rec["addr"] = addr
@@ -212,7 +230,7 @@ def build(
             }
         )
 
-    if unknown["tx_count"]:
+    if unknown["tx_count"] and not labeled_only:
         add_node(UNK_LABEL, 0)
         add_node(FRONTEND_NODE, 1)
         links.append(
@@ -243,13 +261,19 @@ def build(
     for label, rec in _ui_recipient_order(agg):
         addr = rec.get("addr") or ""
         wallet = _wallet_name(addr)
+        hashes = rec["hashes"]
+        if max_hashes_per_recipient is not None:
+            hashes = hashes[: max(0, max_hashes_per_recipient)]
         recipients_detail[label] = {
             "address": addr,
             "wallet": wallet,
             "tx_count": rec["tx_count"],
             "trade_usd": round(rec["trade_usd"], 4),
-            "hashes": rec["hashes"],
+            "hashes": hashes,
         }
+
+    tx_rows = included_txs if labeled_only else len(txs)
+    tx_with_fee = included_txs if labeled_only else sum(1 for h in txs if h in fees)
 
     return {
         "source": "integrator_recipients",
@@ -257,8 +281,9 @@ def build(
         "sankey": {"nodes": nodes, "links": links},
         "recipients_detail": recipients_detail,
         "meta": {
-            "tx_rows": len(txs),
-            "tx_with_fee": sum(1 for h in txs if h in fees),
+            "labeled_only": labeled_only,
+            "tx_rows": tx_rows,
+            "tx_with_fee": tx_with_fee,
             "unique_recipients_total": total_parsed_recipients,
             "unique_recipients_shown": len(
                 [k for k in agg if k not in (UNK_LABEL, OTHER_LABEL)]
@@ -301,6 +326,18 @@ def main() -> int:
         help="merge recipients below top N into Recipient: …other",
     )
     p.set_defaults(rollup_other=False)
+    p.add_argument(
+        "--labeled-only",
+        action="store_true",
+        help="only txs whose fee recipient is a known wallet label (Coinbase/Rabby/Zerion)",
+    )
+    p.add_argument(
+        "--max-hashes",
+        type=int,
+        default=None,
+        metavar="N",
+        help="cap tx hashes per recipient in recipients_detail (0 = omit lists)",
+    )
     args = p.parse_args()
     rollup_other = args.rollup_other
     if not args.txs.is_file():
@@ -312,9 +349,11 @@ def main() -> int:
 
     payload = build(
         load_txs(args.txs),
-        load_fees(args.fees),
+        load_fees(args.fees, labeled_only=args.labeled_only),
         top_n=max(1, args.top),
         rollup_other=rollup_other,
+        labeled_only=args.labeled_only,
+        max_hashes_per_recipient=args.max_hashes,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2), encoding="utf-8")

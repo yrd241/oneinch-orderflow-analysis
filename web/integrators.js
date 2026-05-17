@@ -310,13 +310,8 @@
 
       const meta = document.getElementById("meta-bar");
       if (meta && d.meta) {
-        const total = d.meta.unique_recipients_total ?? d.meta.unique_recipients ?? 0;
-        const shown = d.meta.unique_recipients_shown ?? total;
-        const topN = d.meta.top_n || 10;
         meta.textContent =
-          `${d.meta.tx_with_fee || 0} / ${d.meta.tx_rows || 0} txs with fee recipient · ` +
-          `top ${topN}: ${shown} shown` +
-          (total > shown ? ` (${total} parsed)` : "");
+          `${d.meta.tx_with_fee || 0} / ${d.meta.tx_rows || 0} txs with fee recipient`;
       }
 
       fullPayload = d;

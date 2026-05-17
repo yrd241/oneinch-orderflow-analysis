@@ -1,5 +1,7 @@
 (function () {
   const sankeyEl = document.getElementById("sankey-eoa");
+  if (!sankeyEl) return;
+
   const chart = echarts.init(sankeyEl, null, { renderer: "canvas" });
 
   const filterEls = {

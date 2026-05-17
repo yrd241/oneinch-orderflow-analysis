@@ -233,18 +233,14 @@
       const bar = document.getElementById("time-bar");
       if (d.block_time_range) {
         // `block_time_range` is sourced from SQL as a UTC timestamp string.
-        // Convert it into the browser's local time (date + time).
         const fmt = (s) => {
           const cleaned = String(s).trim().replace(/ UTC$/, "").split(".")[0];
           const dt = new Date(cleaned.replace(" ", "T") + "Z");
           if (Number.isNaN(dt.getTime())) return s;
-          return dt.toLocaleString(undefined, {
+          return dt.toLocaleDateString(undefined, {
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
           });
         };
         const rangeText = fmt(d.block_time_range[0]) + "  –  " + fmt(d.block_time_range[1]);

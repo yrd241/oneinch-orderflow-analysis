@@ -296,13 +296,10 @@
           const cleaned = String(s).trim().replace(/ UTC$/, "").split(".")[0];
           const dt = new Date(cleaned.replace(" ", "T") + "Z");
           if (Number.isNaN(dt.getTime())) return s;
-          return dt.toLocaleString(undefined, {
+          return dt.toLocaleDateString(undefined, {
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
           });
         };
         bar.textContent = fmt(d.block_time_range[0]) + "  –  " + fmt(d.block_time_range[1]);

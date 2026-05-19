@@ -11,15 +11,15 @@
         "depth": 0
       },
       {
-        "name": "Recipient: Fly.trade",
-        "depth": 0
-      },
-      {
         "name": "Recipient: Rabby Wallet",
         "depth": 0
       },
       {
         "name": "Recipient: SafePal",
+        "depth": 0
+      },
+      {
+        "name": "Recipient: Unknown",
         "depth": 0
       },
       {
@@ -39,7 +39,7 @@
         "volume_usd": 13524811.647667287
       },
       {
-        "source": "Recipient: Fly.trade",
+        "source": "Recipient: Unknown",
         "target": "Frontend: 1inch Integrators",
         "value": 8129.0,
         "volume_usd": 7973283.435301702
@@ -173,9 +173,9 @@
         "0xee708639b199ebde7550c6b246f3ad666db685a6e726c9f4c212c099ff0641a0"
       ]
     },
-    "Recipient: Fly.trade": {
+    "Recipient: Unknown": {
       "address": "0xcd6b980029e6e6e0733ac8ec3e02be9410d09799",
-      "wallet": "Fly.trade",
+      "wallet": "Unknown",
       "tx_count": 8129,
       "trade_usd": 7973283.4353,
       "hashes": [

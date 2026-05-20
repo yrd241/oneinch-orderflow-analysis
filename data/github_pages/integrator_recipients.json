@@ -19,7 +19,7 @@
         "depth": 0
       },
       {
-        "name": "Recipient: Unknown",
+        "name": "Recipient: Rabby Wallet #2",
         "depth": 0
       },
       {
@@ -39,7 +39,7 @@
         "volume_usd": 13524811.647667287
       },
       {
-        "source": "Recipient: Unknown",
+        "source": "Recipient: Rabby Wallet #2",
         "target": "Frontend: 1inch Integrators",
         "value": 8129.0,
         "volume_usd": 7973283.435301702
@@ -173,9 +173,9 @@
         "0xee708639b199ebde7550c6b246f3ad666db685a6e726c9f4c212c099ff0641a0"
       ]
     },
-    "Recipient: Unknown": {
+    "Recipient: Rabby Wallet #2": {
       "address": "0xcd6b980029e6e6e0733ac8ec3e02be9410d09799",
-      "wallet": "Unknown",
+      "wallet": "Rabby Wallet #2",
       "tx_count": 8129,
       "trade_usd": 7973283.4353,
       "hashes": [
